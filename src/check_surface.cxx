@@ -6,6 +6,8 @@
 #include "SPAres.hxx"
 #include "bsf.hxx"
 #include "bsfacc.hxx"
+#include <cmath>
+#include <cstring>
 
 surface_check_result::surface_check_result()
     : _status(SURF_CHECK_OK),
@@ -134,6 +136,9 @@ outcome api_check_surface_ok(
             }
             if (strstr(desc, "periodic")) {
                 status |= SURF_CHECK_BAD_PERIODICITY;
+            }
+            if (strstr(desc, "base surface")) {
+                status |= SURF_CHECK_ILLEGAL_SURFACE;
             }
         }
         entry = entry->next();
@@ -284,50 +289,77 @@ logical check_surface_continuity(
 
     logical valid = TRUE;
 
+    // G1 tangent continuity check at closed surface seams
     if (surface->closed_u() || surface->closed_v()) {
         SPApar_box pb = surface->param_range();
         SPAinterval u_range = pb.interval(0);
         SPAinterval v_range = pb.interval(1);
 
+        int num_samples = 5;
+
         if (surface->closed_u()) {
-            double v_mid = (v_range.low() + v_range.high()) / 2.0;
-            double u_low = u_range.low();
-            double u_high = u_range.high();
+            double eps = (u_range.high() - u_range.low()) * 0.001;
+            for (int j = 0; j <= num_samples; j++) {
+                double v = v_range.low() +
+                           (v_range.high() - v_range.low()) * j / num_samples;
 
-            SPApar_pos p1(u_low, v_mid);
-            SPApar_pos p2(u_high, v_mid);
-            SPAposition pos1 = surface->eval_position(p1);
-            SPAposition pos2 = surface->eval_position(p2);
+                SPApar_pos p1(u_range.low() + eps, v);
+                SPApar_pos p2(u_range.high() - eps, v);
 
-            if ((pos1 - pos2).length() > SPAresabs) {
-                insanity_data *id = new insanity_data();
-                id->set_insanity_type(ERROR_TYPE);
-                id->set_description(
-                    "Surface marked closed in U but boundary positions differ."
-                );
-                ilist->add(id);
-                valid = FALSE;
+                SPAvector du1, dv1, du2, dv2;
+                try {
+                    surface->eval_derivs(p1, du1, dv1);
+                    surface->eval_derivs(p2, du2, dv2);
+
+                    if (du1.length() > SPAresabs && du2.length() > SPAresabs) {
+                        double cos_angle = (du1 | du2) /
+                                           (du1.length() * du2.length());
+                        if (cos_angle < 1.0 - SPAresnor * 10) {
+                            insanity_data *id = new insanity_data();
+                            id->set_insanity_type(WARNING);
+                            id->set_description(
+                                "Surface G1 discontinuity at U seam."
+                            );
+                            ilist->add(id);
+                            valid = FALSE;
+                        }
+                    }
+                } catch (...) {
+                    // Skip on exception
+                }
             }
         }
 
         if (surface->closed_v()) {
-            double u_mid = (u_range.low() + u_range.high()) / 2.0;
-            double v_low = v_range.low();
-            double v_high = v_range.high();
+            double eps = (v_range.high() - v_range.low()) * 0.001;
+            for (int i = 0; i <= num_samples; i++) {
+                double u = u_range.low() +
+                           (u_range.high() - u_range.low()) * i / num_samples;
 
-            SPApar_pos p1(u_mid, v_low);
-            SPApar_pos p2(u_mid, v_high);
-            SPAposition pos1 = surface->eval_position(p1);
-            SPAposition pos2 = surface->eval_position(p2);
+                SPApar_pos p1(u, v_range.low() + eps);
+                SPApar_pos p2(u, v_range.high() - eps);
 
-            if ((pos1 - pos2).length() > SPAresabs) {
-                insanity_data *id = new insanity_data();
-                id->set_insanity_type(ERROR_TYPE);
-                id->set_description(
-                    "Surface marked closed in V but boundary positions differ."
-                );
-                ilist->add(id);
-                valid = FALSE;
+                SPAvector du1, dv1, du2, dv2;
+                try {
+                    surface->eval_derivs(p1, du1, dv1);
+                    surface->eval_derivs(p2, du2, dv2);
+
+                    if (dv1.length() > SPAresabs && dv2.length() > SPAresabs) {
+                        double cos_angle = (dv1 | dv2) /
+                                           (dv1.length() * dv2.length());
+                        if (cos_angle < 1.0 - SPAresnor * 10) {
+                            insanity_data *id = new insanity_data();
+                            id->set_insanity_type(WARNING);
+                            id->set_description(
+                                "Surface G1 discontinuity at V seam."
+                            );
+                            ilist->add(id);
+                            valid = FALSE;
+                        }
+                    }
+                } catch (...) {
+                    // Skip on exception
+                }
             }
         }
     }
@@ -541,7 +573,7 @@ logical check_bspline_surface(
     if (!bs->closed_u()) {
         for (int i = 0; i < u_num_cp; i++) {
             SPAposition cp1 = bs->control_point(i, 0);
-            SPAposition cp2 = bs->control_point(i, u_num_cp - 1);
+            SPAposition cp2 = bs->control_point(i, v_num_cp - 1);
 
             if ((cp1 - cp2).length() < SPAresabs) {
                 insanity_data *id = new insanity_data();
@@ -746,21 +778,53 @@ logical check_surface_g2_continuity(
             SPApar_pos p_left(u_range.high() - eps, v);
             SPApar_pos p_right(u_range.low() + eps, v);
 
-            SPAvector du_left, dv_left;
-            SPAvector du_right, dv_right;
-
             try {
+                // Evaluate first derivatives
+                SPAvector du_left, dv_left;
+                SPAvector du_right, dv_right;
                 surface->eval_derivs(p_left, du_left, dv_left);
                 surface->eval_derivs(p_right, du_right, dv_right);
 
-                if ((du_left - du_right).length() > SPAresabs * 10) {
-                    insanity_data *id = new insanity_data();
-                    id->set_insanity_type(WARNING);
-                    id->set_description(
-                        "Surface G1 discontinuity at U seam."
-                    );
-                    ilist->add(id);
-                    valid = FALSE;
+                // G1 check at seam
+                if (du_left.length() > SPAresabs && du_right.length() > SPAresabs) {
+                    double cos_g1 = (du_left | du_right) /
+                                    (du_left.length() * du_right.length());
+                    if (cos_g1 < 1.0 - SPAresnor * 10) {
+                        insanity_data *id = new insanity_data();
+                        id->set_insanity_type(WARNING);
+                        id->set_description(
+                            "Surface G1 discontinuity at U seam."
+                        );
+                        ilist->add(id);
+                        valid = FALSE;
+                    }
+                }
+
+                // G2 check: compare curvature (second derivative) at seam
+                // Approximate second derivatives via finite differences
+                double h = (u_range.high() - u_range.low()) * 0.0001;
+                SPApar_pos p_left2(u_range.high() - 2 * eps, v);
+                SPApar_pos p_right2(u_range.low() + 2 * eps, v);
+
+                SPAvector du_left2, dv_left2, du_right2, dv_right2;
+                surface->eval_derivs(p_left2, du_left2, dv_left2);
+                surface->eval_derivs(p_right2, du_right2, dv_right2);
+
+                SPAvector d2u_left = (du_left - du_left2) / h;
+                SPAvector d2u_right = (du_right2 - du_right) / h;
+
+                if (d2u_left.length() > SPAresabs && d2u_right.length() > SPAresabs) {
+                    double cos_g2 = (d2u_left | d2u_right) /
+                                    (d2u_left.length() * d2u_right.length());
+                    if (cos_g2 < 1.0 - SPAresnor * 100) {
+                        insanity_data *id = new insanity_data();
+                        id->set_insanity_type(WARNING);
+                        id->set_description(
+                            "Surface G2 discontinuity at U seam."
+                        );
+                        ilist->add(id);
+                        valid = FALSE;
+                    }
                 }
             } catch (...) {
                 // Skip on exception
@@ -778,21 +842,52 @@ logical check_surface_g2_continuity(
             SPApar_pos p_left(u, v_range.high() - eps);
             SPApar_pos p_right(u, v_range.low() + eps);
 
-            SPAvector du_left, dv_left;
-            SPAvector du_right, dv_right;
-
             try {
+                // Evaluate first derivatives
+                SPAvector du_left, dv_left;
+                SPAvector du_right, dv_right;
                 surface->eval_derivs(p_left, du_left, dv_left);
                 surface->eval_derivs(p_right, du_right, dv_right);
 
-                if ((dv_left - dv_right).length() > SPAresabs * 10) {
-                    insanity_data *id = new insanity_data();
-                    id->set_insanity_type(WARNING);
-                    id->set_description(
-                        "Surface G1 discontinuity at V seam."
-                    );
-                    ilist->add(id);
-                    valid = FALSE;
+                // G1 check at seam
+                if (dv_left.length() > SPAresabs && dv_right.length() > SPAresabs) {
+                    double cos_g1 = (dv_left | dv_right) /
+                                    (dv_left.length() * dv_right.length());
+                    if (cos_g1 < 1.0 - SPAresnor * 10) {
+                        insanity_data *id = new insanity_data();
+                        id->set_insanity_type(WARNING);
+                        id->set_description(
+                            "Surface G1 discontinuity at V seam."
+                        );
+                        ilist->add(id);
+                        valid = FALSE;
+                    }
+                }
+
+                // G2 check: compare curvature (second derivative) at seam
+                double h = (v_range.high() - v_range.low()) * 0.0001;
+                SPApar_pos p_left2(u, v_range.high() - 2 * eps);
+                SPApar_pos p_right2(u, v_range.low() + 2 * eps);
+
+                SPAvector du_left2, dv_left2, du_right2, dv_right2;
+                surface->eval_derivs(p_left2, du_left2, dv_left2);
+                surface->eval_derivs(p_right2, du_right2, dv_right2);
+
+                SPAvector d2v_left = (dv_left - dv_left2) / h;
+                SPAvector d2v_right = (dv_right2 - dv_right) / h;
+
+                if (d2v_left.length() > SPAresabs && d2v_right.length() > SPAresabs) {
+                    double cos_g2 = (d2v_left | d2v_right) /
+                                    (d2v_left.length() * d2v_right.length());
+                    if (cos_g2 < 1.0 - SPAresnor * 100) {
+                        insanity_data *id = new insanity_data();
+                        id->set_insanity_type(WARNING);
+                        id->set_description(
+                            "Surface G2 discontinuity at V seam."
+                        );
+                        ilist->add(id);
+                        valid = FALSE;
+                    }
                 }
             } catch (...) {
                 // Skip on exception
@@ -1064,6 +1159,12 @@ int check_surface_ok(
             }
             if (strstr(desc, "periodic")) {
                 status |= SURF_CHECK_BAD_PERIODICITY;
+            }
+            if (strstr(desc, "G0")) {
+                status |= SURF_CHECK_NON_G0;
+            }
+            if (strstr(desc, "base surface")) {
+                status |= SURF_CHECK_ILLEGAL_SURFACE;
             }
         }
 

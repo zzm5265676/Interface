@@ -555,6 +555,14 @@ logical check_edge_fit_tolerance(
     logical valid = TRUE;
     double fit_tol = edge->fit_tolerance();
 
+    if (std::isnan(fit_tol) || std::isinf(fit_tol)) {
+        insanity_data *id = new insanity_data();
+        id->set_insanity_type(ERROR_TYPE);
+        id->set_description("Edge fit tolerance is NaN or Inf.");
+        ilist->add(id);
+        valid = FALSE;
+    }
+
     if (fit_tol < 0) {
         insanity_data *id = new insanity_data();
         id->set_insanity_type(ERROR_TYPE);

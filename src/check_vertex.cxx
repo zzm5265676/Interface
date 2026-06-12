@@ -11,6 +11,8 @@
 #include "curve.hxx"
 #include "surface.hxx"
 #include "spa_intr_solid.hxx"
+#include <cmath>
+#include <cstring>
 
 vertex_check_result::vertex_check_result()
     : _status(VTX_CHECK_OK),
@@ -486,7 +488,7 @@ logical check_vertex_normal_consistency(
         edge = vertex->edge();
         first_edge = edge;
 
-        SPAvector first_normal;
+        SPAvector first_normal(0, 0, 0);
         bool first_found = false;
 
         do {
@@ -497,8 +499,37 @@ logical check_vertex_normal_consistency(
                 do {
                     FACE *face = coedge->loop() ? coedge->loop()->face() : NULL;
                     if (face && face->surfi()) {
-                        if (!first_found) {
-                            first_found = true;
+                        SURFACE *surf = face->surfi();
+                        SPApar_box pb = face->param_range();
+                        double u_mid = (pb.interval(0).low() + pb.interval(0).high()) / 2.0;
+                        double v_mid = (pb.interval(1).low() + pb.interval(1).high()) / 2.0;
+                        SPApar_pos pos(u_mid, v_mid);
+
+                        SPAvector du, dv;
+                        try {
+                            surf->eval_derivs(pos, du, dv);
+                            SPAvector normal = du * dv;
+                            double len = normal.length();
+                            if (len > SPAresabs) {
+                                normal = normal / len;
+                                if (!first_found) {
+                                    first_normal = normal;
+                                    first_found = true;
+                                } else {
+                                    double dot = first_normal | normal;
+                                    if (dot < 0.9) {
+                                        insanity_data *id = new insanity_data();
+                                        id->set_insanity_type(WARNING);
+                                        id->set_description(
+                                            "Vertex normal inconsistency detected."
+                                        );
+                                        ilist->add(id);
+                                        valid = FALSE;
+                                    }
+                                }
+                            }
+                        } catch (...) {
+                            // Skip on exception
                         }
                     }
                     coedge = coedge->next();
@@ -578,32 +609,64 @@ logical check_vertex_sharp_angle(
         return TRUE;
     }
 
-    double** angles = new double*[edge_count];
-    for (int i = 0; i < edge_count; i++) {
-        angles[i] = new double[edge_count];
-    }
-
-    int idx1 = 0;
+    // Collect edges into an array for pairwise angle comparison
+    EDGE **edges = new EDGE*[edge_count];
+    int idx = 0;
     e = edge;
     do {
-        int idx2 = 0;
-        EDGE *e2 = edge;
-        do {
-            if (idx1 != idx2) {
-                angles[idx1][idx2] = 0.0;
-            }
-            idx2++;
-            e2 = e2->next(vertex);
-        } while (e2 && e2 != first_edge);
-
-        idx1++;
+        edges[idx++] = e;
         e = e->next(vertex);
     } while (e && e != first_edge);
 
-    for (int i = 0; i < edge_count; i++) {
-        delete[] angles[i];
+    for (int i = 0; i < edge_count && valid; i++) {
+        for (int j = i + 1; j < edge_count && valid; j++) {
+            CURVE *c1 = edges[i]->curfi();
+            CURVE *c2 = edges[j]->curfi();
+            if (!c1 || !c2) continue;
+
+            SPAvector tan1, tan2;
+            try {
+                if (edges[i]->start() == vertex) {
+                    tan1 = c1->eval_deriv(edges[i]->start_param());
+                } else {
+                    tan1 = c1->eval_deriv(edges[i]->end_param());
+                    tan1 = tan1 * (-1.0);
+                }
+
+                if (edges[j]->start() == vertex) {
+                    tan2 = c2->eval_deriv(edges[j]->start_param());
+                } else {
+                    tan2 = c2->eval_deriv(edges[j]->end_param());
+                    tan2 = tan2 * (-1.0);
+                }
+
+                double len1 = tan1.length();
+                double len2 = tan2.length();
+                if (len1 > SPAresabs && len2 > SPAresabs) {
+                    double cos_angle = (tan1 | tan2) / (len1 * len2);
+                    // Clamp to [-1, 1] to avoid numerical issues
+                    if (cos_angle > 1.0) cos_angle = 1.0;
+                    if (cos_angle < -1.0) cos_angle = -1.0;
+                    double angle = acos(cos_angle);
+
+                    // Check for very sharp angle (< ~10 degrees)
+                    if (angle < 0.174) {
+                        insanity_data *id = new insanity_data();
+                        id->set_insanity_type(WARNING);
+                        id->set_description(
+                            "Sharp angle detected between edges at vertex."
+                        );
+                        ilist->add(id);
+                        valid = FALSE;
+                    }
+                }
+            } catch (...) {
+                // Skip on exception
+            }
+        }
     }
-    delete[] angles;
+
+    delete[] edges;
 
     return valid;
 }

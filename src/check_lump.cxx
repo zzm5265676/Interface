@@ -33,6 +33,10 @@ bool lump_check_result::is_ok() const {
     return _status == LUMP_CHECK_OK;
 }
 
+void lump_check_result::set_status(int status) {
+    _status = status;
+}
+
 int lump_check_result::shell_count() const {
     return _shell_count;
 }
@@ -66,29 +70,39 @@ outcome api_check_lump(
         return outcome(API_NULL_ARGUMENT, FAIL, 0);
     }
 
-    check_lump_shells_valid(lump, result.get_insanity_list());
+    int status = LUMP_CHECK_OK;
+
+    if (check_lump_shells_valid(lump, result.get_insanity_list()) == FALSE) {
+        status |= LUMP_CHECK_NO_SHELL;
+    }
 
     SHELL *shell = lump->shell();
     while (shell) {
         result._shell_count++;
 
-        check_shell_faces_valid(shell, result.get_insanity_list());
+        if (check_shell_faces_valid(shell, result.get_insanity_list()) == FALSE) {
+            status |= LUMP_CHECK_DEGENERATE_FACE;
+            result._bad_face_count++;
+        }
 
         FACE *face = shell->face();
         while (face) {
             if (check_edge_curves_valid(face, result.get_insanity_list()) == FALSE) {
                 result._bad_edge_count++;
+                status |= LUMP_CHECK_NULL_EDGE_CURVE;
             }
 
             if (check_coedge_sense(face, result.get_insanity_list()) == FALSE) {
-                result._status |= LUMP_CHECK_BAD_COEDGE_SENSE;
+                status |= LUMP_CHECK_BAD_COEDGE_SENSE;
             }
 
             LOOP *loop = face->loop();
             while (loop) {
                 WIRE *wire = loop->wire();
                 while (wire) {
-                    check_wire_self_intersect(wire, result.get_insanity_list());
+                    if (check_wire_self_intersect(wire, result.get_insanity_list()) == FALSE) {
+                        status |= LUMP_CHECK_SHELL_SELF_INT;
+                    }
                     wire = wire->next();
                 }
                 loop = loop->next();
@@ -100,8 +114,31 @@ outcome api_check_lump(
         shell = shell->next();
     }
 
-    check_lump_containment(lump, result.get_insanity_list());
+    if (check_lump_containment(lump, result.get_insanity_list()) == FALSE) {
+        status |= LUMP_CHECK_BAD_CONTAINMENT;
+    }
 
+    if (check_lump_volume(lump, result.get_insanity_list()) == FALSE) {
+        status |= LUMP_CHECK_BAD_VOLUME;
+    }
+
+    if (check_lump_bounding_box(lump, result.get_insanity_list()) == FALSE) {
+        status |= LUMP_CHECK_BAD_BOUNDING_BOX;
+    }
+
+    if (check_lump_shell_orientation(lump, result.get_insanity_list()) == FALSE) {
+        status |= LUMP_CHECK_SHELL_ORIENT_MISMATCH;
+    }
+
+    if (check_lump_face_adjacency(lump, result.get_insanity_list()) == FALSE) {
+        status |= LUMP_CHECK_BAD_FACE_ADJACENCY;
+    }
+
+    if (check_lump_edge_manifold(lump, result.get_insanity_list()) == FALSE) {
+        status |= LUMP_CHECK_NON_MANIFOLD_EDGE;
+    }
+
+    result.set_status(status);
     return res;
 }
 
@@ -397,9 +434,9 @@ logical check_wire_self_intersect(
                     }
                 }
 
-                ACIS_DELETE par1;
-                ACIS_DELETE par2;
-                ACIS_DELETE pts;
+                ACIS_DELETE[] par1;
+                ACIS_DELETE[] par2;
+                ACIS_DELETE[] pts;
             }
 
             other = other->next();
@@ -553,7 +590,13 @@ logical check_lump_shell_orientation(
                     } while (coedge && coedge != first_coedge);
 
                     if (forward_count > 0 && reverse_count > 0) {
-                        // Mixed senses in a single loop
+                        insanity_data *id = new insanity_data();
+                        id->set_insanity_type(WARNING);
+                        id->set_description(
+                            "Shell has mixed coedge orientations in a loop."
+                        );
+                        ilist->add(id);
+                        valid = FALSE;
                     }
                 }
             }
@@ -755,6 +798,18 @@ int api_check_lump_status(
             }
             if (strstr(desc, "manifold")) {
                 status |= LUMP_CHECK_NON_MANIFOLD_EDGE;
+            }
+            if (strstr(desc, "null curve") || strstr(desc, "null point")) {
+                status |= LUMP_CHECK_NULL_EDGE_CURVE;
+            }
+            if (strstr(desc, "self-intersection")) {
+                status |= LUMP_CHECK_SHELL_SELF_INT;
+            }
+            if (strstr(desc, "null surface") || strstr(desc, "no coedge")) {
+                status |= LUMP_CHECK_DEGENERATE_FACE;
+            }
+            if (strstr(desc, "same sense")) {
+                status |= LUMP_CHECK_BAD_COEDGE_SENSE;
             }
         }
 

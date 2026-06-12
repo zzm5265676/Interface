@@ -31,6 +31,7 @@ public:
 
     int get_status() const;
     bool is_ok() const;
+    void set_status(int status);
 
     int shell_count() const;
     int bad_face_count() const;

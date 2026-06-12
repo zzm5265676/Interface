@@ -670,13 +670,13 @@ logical check_bs3_curve_convex_hull(
     for (int i = 1; i < num_cp; i++) {
         SPAposition cp = curve->control_point(i);
 
-        if (cp.x() < cp_min.x()) cp_min.x() = cp.x();
-        if (cp.y() < cp_min.y()) cp_min.y() = cp.y();
-        if (cp.z() < cp_min.z()) cp_min.z() = cp.z();
+        if (cp.x() < cp_min.x()) cp_min = SPAposition(cp.x(), cp_min.y(), cp_min.z());
+        if (cp.y() < cp_min.y()) cp_min = SPAposition(cp_min.x(), cp.y(), cp_min.z());
+        if (cp.z() < cp_min.z()) cp_min = SPAposition(cp_min.x(), cp_min.y(), cp.z());
 
-        if (cp.x() > cp_max.x()) cp_max.x() = cp.x();
-        if (cp.y() > cp_max.y()) cp_max.y() = cp.y();
-        if (cp.z() > cp_max.z()) cp_max.z() = cp.z();
+        if (cp.x() > cp_max.x()) cp_max = SPAposition(cp.x(), cp_max.y(), cp_max.z());
+        if (cp.y() > cp_max.y()) cp_max = SPAposition(cp_max.x(), cp.y(), cp_max.z());
+        if (cp.z() > cp_max.z()) cp_max = SPAposition(cp_max.x(), cp_max.y(), cp.z());
     }
 
     int num_samples = 20;

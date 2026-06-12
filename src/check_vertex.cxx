@@ -48,6 +48,18 @@ int vertex_check_result::non_manifold_count() const {
     return _non_manifold_count;
 }
 
+void vertex_check_result::note_edge() {
+    ++_edge_count;
+}
+
+void vertex_check_result::note_bad_edge() {
+    ++_bad_edge_count;
+}
+
+void vertex_check_result::note_non_manifold() {
+    ++_non_manifold_count;
+}
+
 void vertex_check_result::add_insanity(insanity_data *data) {
     if (data) {
         _insanities.add(data);
@@ -89,6 +101,18 @@ outcome api_check_vertex_errors(
 
     check_vertex_sharp_angle(vertex, result.get_insanity_list());
 
+    EDGE *edge = vertex->edge();
+    EDGE *first_edge = edge;
+    if (edge) {
+        do {
+            result.note_edge();
+            if (!edge->start() || !edge->end() || !edge->curfi()) {
+                result.note_bad_edge();
+            }
+            edge = edge->next(vertex);
+        } while (edge && edge != first_edge);
+    }
+
     int status = VTX_CHECK_OK;
     insanity_data *entry = result.get_insanity_list()->first();
     while (entry) {
@@ -111,8 +135,9 @@ outcome api_check_vertex_errors(
             }
             if (strstr(desc, "non-manifold")) {
                 status |= VTX_CHECK_NON_MANIFOLD;
+                result.note_non_manifold();
             }
-            if (strstr(desc, "coincident")) {
+            if (strstr(desc, "coincident") || strstr(desc, "Coincident")) {
                 status |= VTX_CHECK_COINCIDENT_VERTICES;
             }
             if (strstr(desc, "not at curve")) {
@@ -749,7 +774,7 @@ int api_check_vertex(
             if (strstr(desc, "non-manifold")) {
                 status |= VTX_CHECK_NON_MANIFOLD;
             }
-            if (strstr(desc, "Coincident")) {
+            if (strstr(desc, "coincident") || strstr(desc, "Coincident")) {
                 status |= VTX_CHECK_COINCIDENT_VERTICES;
             }
             if (strstr(desc, "not at curve")) {

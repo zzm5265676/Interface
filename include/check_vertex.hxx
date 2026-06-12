@@ -34,6 +34,9 @@ public:
     int edge_count() const;
     int bad_edge_count() const;
     int non_manifold_count() const;
+    void note_edge();
+    void note_bad_edge();
+    void note_non_manifold();
 
     void add_insanity(insanity_data *data);
     insanity_list *get_insanity_list();

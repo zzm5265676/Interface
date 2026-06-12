@@ -34,6 +34,10 @@ int edge_check_result::eval_failure_count() const {
     return _eval_failure_count;
 }
 
+void edge_check_result::note_eval_failure() {
+    ++_eval_failure_count;
+}
+
 void edge_check_result::add_insanity(insanity_data *data) {
     if (data) {
         _insanities.add(data);
@@ -114,6 +118,7 @@ outcome api_check_edge_errors(
             }
             if (strstr(desc, "evaluation") || strstr(desc, "threw")) {
                 status |= EDGE_CHECK_EVAL_FAILURE;
+                result.note_eval_failure();
             }
             if (strstr(desc, "NaN") || strstr(desc, "Inf")) {
                 status |= EDGE_CHECK_NAN_COORDINATES;
@@ -130,7 +135,8 @@ outcome api_check_edge_errors(
             if (strstr(desc, "bounding box")) {
                 status |= EDGE_CHECK_BAD_BOUNDING_BOX;
             }
-            if (strstr(desc, "normalization")) {
+            if (strstr(desc, "normalization") ||
+                strstr(desc, "start parameter > end parameter")) {
                 status |= EDGE_CHECK_BAD_PARAM_NORMALIZATION;
             }
         }
@@ -885,7 +891,8 @@ int api_check_edge(
             if (strstr(desc, "bounding box")) {
                 status |= EDGE_CHECK_BAD_BOUNDING_BOX;
             }
-            if (strstr(desc, "normalization")) {
+            if (strstr(desc, "normalization") ||
+                strstr(desc, "start parameter > end parameter")) {
                 status |= EDGE_CHECK_BAD_PARAM_NORMALIZATION;
             }
         }

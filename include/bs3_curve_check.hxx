@@ -37,6 +37,8 @@ public:
 
     int eval_failure_count() const;
     int degenerate_count() const;
+    void note_eval_failure();
+    void note_degenerate();
 
     void add_insanity(insanity_data *data);
     insanity_list *get_insanity_list();

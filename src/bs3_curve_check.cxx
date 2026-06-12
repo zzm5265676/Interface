@@ -37,6 +37,14 @@ int bs3_curve_check_result::degenerate_count() const {
     return _degenerate_count;
 }
 
+void bs3_curve_check_result::note_eval_failure() {
+    ++_eval_failure_count;
+}
+
+void bs3_curve_check_result::note_degenerate() {
+    ++_degenerate_count;
+}
+
 void bs3_curve_check_result::add_insanity(insanity_data *data) {
     if (data) {
         _insanities.add(data);
@@ -110,6 +118,7 @@ outcome api_bs3_curve_check(
             }
             if (strstr(desc, "evaluation") || strstr(desc, "threw")) {
                 status |= BS3_CURVE_CHECK_EVAL_FAILURE;
+                result.note_eval_failure();
             }
             if (strstr(desc, "NaN") || strstr(desc, "Inf")) {
                 status |= BS3_CURVE_CHECK_NAN_COORDINATES;
@@ -125,6 +134,7 @@ outcome api_bs3_curve_check(
             }
             if (strstr(desc, "degenerate")) {
                 status |= BS3_CURVE_CHECK_DEGENERATE;
+                result.note_degenerate();
             }
             if (strstr(desc, "multiplicity")) {
                 status |= BS3_CURVE_CHECK_BAD_KNOT_MULT;

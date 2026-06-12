@@ -38,6 +38,14 @@ int surface_check_result::singularity_count() const {
     return _singularity_count;
 }
 
+void surface_check_result::note_eval_failure() {
+    ++_eval_failure_count;
+}
+
+void surface_check_result::note_singularity() {
+    ++_singularity_count;
+}
+
 void surface_check_result::add_insanity(insanity_data *data) {
     if (data) {
         _insanities.add(data);
@@ -100,6 +108,7 @@ outcome api_check_surface_ok(
             }
             if (strstr(desc, "evaluation")) {
                 status |= SURF_CHECK_EVAL_FAILURE;
+                result.note_eval_failure();
             }
             if (strstr(desc, "parameter")) {
                 status |= SURF_CHECK_BAD_PARAMETER_RANGE;
@@ -109,6 +118,7 @@ outcome api_check_surface_ok(
             }
             if (strstr(desc, "singularity")) {
                 status |= SURF_CHECK_BAD_SINGULARITY;
+                result.note_singularity();
             }
             if (strstr(desc, "tolerance")) {
                 status |= SURF_CHECK_BAD_FIT_TOLERANCE;
@@ -506,6 +516,14 @@ logical check_surface_fit_tolerance(
     logical valid = TRUE;
     double fit_tol = surface->fit_tolerance();
 
+    if (std::isnan(fit_tol) || std::isinf(fit_tol)) {
+        insanity_data *id = new insanity_data();
+        id->set_insanity_type(ERROR_TYPE);
+        id->set_description("Surface fit tolerance is NaN or Inf.");
+        ilist->add(id);
+        return FALSE;
+    }
+
     if (fit_tol < 0) {
         insanity_data *id = new insanity_data();
         id->set_insanity_type(ERROR_TYPE);
@@ -570,7 +588,7 @@ logical check_bspline_surface(
         valid = FALSE;
     }
 
-    if (!bs->closed_u()) {
+    if (!bs->closed_v()) {
         for (int i = 0; i < u_num_cp; i++) {
             SPAposition cp1 = bs->control_point(i, 0);
             SPAposition cp2 = bs->control_point(i, v_num_cp - 1);
@@ -587,7 +605,7 @@ logical check_bspline_surface(
         }
     }
 
-    if (!bs->closed_v()) {
+    if (!bs->closed_u()) {
         for (int i = 0; i < v_num_cp; i++) {
             SPAposition cp1 = bs->control_point(0, i);
             SPAposition cp2 = bs->control_point(u_num_cp - 1, i);

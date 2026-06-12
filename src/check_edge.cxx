@@ -34,6 +34,10 @@ int edge_check_result::eval_failure_count() const {
     return _eval_failure_count;
 }
 
+void edge_check_result::note_eval_failure() {
+    ++_eval_failure_count;
+}
+
 void edge_check_result::add_insanity(insanity_data *data) {
     if (data) {
         _insanities.add(data);
@@ -71,6 +75,10 @@ outcome api_check_edge_errors(
     check_edge_g1_continuity(edge, result.get_insanity_list(), &status);
     check_edge_bounding_box(edge, result.get_insanity_list(), &status);
     check_edge_param_normalization(edge, result.get_insanity_list(), &status);
+
+    if (status & EDGE_CHECK_EVAL_FAILURE) {
+        result.note_eval_failure();
+    }
 
     result.set_status(status);
     return res;
@@ -318,35 +326,53 @@ logical check_edge_vertex_on_curve(
     VERTEX *v_end = edge->end();
 
     if (v_start && v_start->point()) {
-        SPAposition start_pos = v_start->point()->position();
-        double start_param = edge->start_param();
-        SPAposition curve_start = curve->eval_position(start_param);
+        try {
+            SPAposition start_pos = v_start->point()->position();
+            double start_param = edge->start_param();
+            SPAposition curve_start = curve->eval_position(start_param);
 
-        if ((start_pos - curve_start).length() > SPAresabs) {
+            if ((start_pos - curve_start).length() > SPAresabs) {
+                insanity_data *id = new insanity_data();
+                id->set_insanity_type(ERROR_TYPE);
+                id->set_description(
+                    "Edge start vertex not at curve start parameter position."
+                );
+                ilist->add(id);
+                if (status) *status |= EDGE_CHECK_VERTEX_NOT_ON_CURVE;
+                valid = FALSE;
+            }
+        } catch (...) {
             insanity_data *id = new insanity_data();
             id->set_insanity_type(ERROR_TYPE);
-            id->set_description(
-                "Edge start vertex not at curve start parameter position."
-            );
+            id->set_description("Edge start vertex evaluation failed.");
             ilist->add(id);
-            if (status) *status |= EDGE_CHECK_VERTEX_NOT_ON_CURVE;
+            if (status) *status |= EDGE_CHECK_EVAL_FAILURE;
             valid = FALSE;
         }
     }
 
     if (v_end && v_end->point()) {
-        SPAposition end_pos = v_end->point()->position();
-        double end_param = edge->end_param();
-        SPAposition curve_end = curve->eval_position(end_param);
+        try {
+            SPAposition end_pos = v_end->point()->position();
+            double end_param = edge->end_param();
+            SPAposition curve_end = curve->eval_position(end_param);
 
-        if ((end_pos - curve_end).length() > SPAresabs) {
+            if ((end_pos - curve_end).length() > SPAresabs) {
+                insanity_data *id = new insanity_data();
+                id->set_insanity_type(ERROR_TYPE);
+                id->set_description(
+                    "Edge end vertex not at curve end parameter position."
+                );
+                ilist->add(id);
+                if (status) *status |= EDGE_CHECK_VERTEX_NOT_ON_CURVE;
+                valid = FALSE;
+            }
+        } catch (...) {
             insanity_data *id = new insanity_data();
             id->set_insanity_type(ERROR_TYPE);
-            id->set_description(
-                "Edge end vertex not at curve end parameter position."
-            );
+            id->set_description("Edge end vertex evaluation failed.");
             ilist->add(id);
-            if (status) *status |= EDGE_CHECK_VERTEX_NOT_ON_CURVE;
+            if (status) *status |= EDGE_CHECK_EVAL_FAILURE;
             valid = FALSE;
         }
     }
@@ -375,8 +401,19 @@ logical check_edge_closure(
     logical valid = TRUE;
     SPAinterval range = edge->param_range();
 
-    SPAposition start_pos = curve->eval_position(range.low());
-    SPAposition end_pos = curve->eval_position(range.high());
+    SPAposition start_pos;
+    SPAposition end_pos;
+    try {
+        start_pos = curve->eval_position(range.low());
+        end_pos = curve->eval_position(range.high());
+    } catch (...) {
+        insanity_data *id = new insanity_data();
+        id->set_insanity_type(ERROR_TYPE);
+        id->set_description("Edge closure evaluation failed.");
+        ilist->add(id);
+        if (status) *status |= EDGE_CHECK_EVAL_FAILURE;
+        return FALSE;
+    }
 
     if ((start_pos - end_pos).length() > SPAresabs) {
         insanity_data *id = new insanity_data();

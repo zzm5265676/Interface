@@ -36,6 +36,9 @@ public:
     int shell_count() const;
     int bad_face_count() const;
     int bad_edge_count() const;
+    void note_shell();
+    void note_bad_face();
+    void note_bad_edge();
 
     void add_insanity(insanity_data *data);
     insanity_list *get_insanity_list();

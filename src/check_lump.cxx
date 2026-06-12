@@ -14,6 +14,8 @@
 #include "spa_intr_solid.hxx"
 #include "intrapi.hxx"
 #include "boolapi.hxx"
+#include <cmath>
+#include <vector>
 
 lump_check_result::lump_check_result()
     : _status(LUMP_CHECK_OK),
@@ -49,6 +51,18 @@ int lump_check_result::bad_edge_count() const {
     return _bad_edge_count;
 }
 
+void lump_check_result::note_shell() {
+    ++_shell_count;
+}
+
+void lump_check_result::note_bad_face() {
+    ++_bad_face_count;
+}
+
+void lump_check_result::note_bad_edge() {
+    ++_bad_edge_count;
+}
+
 void lump_check_result::add_insanity(insanity_data *data) {
     if (data) {
         _insanities.add(data);
@@ -57,6 +71,98 @@ void lump_check_result::add_insanity(insanity_data *data) {
 
 insanity_list *lump_check_result::get_insanity_list() {
     return &_insanities;
+}
+
+static logical is_inside_or_boundary(int containment) {
+    return containment == point_inside || containment == point_boundary;
+}
+
+static logical is_outside_or_unknown(int containment) {
+    return containment == point_outside || containment == point_unknown;
+}
+
+static logical check_lump_vertex_manifold(
+    LUMP          *lump,
+    insanity_list *ilist,
+    int           *status
+) {
+    logical valid = TRUE;
+    std::vector<VERTEX*> seen_vertices;
+
+    for (SHELL *shell = lump->shell(); shell; shell = shell->next()) {
+        for (FACE *face = shell->face(); face; face = face->next()) {
+            for (LOOP *loop = face->loop(); loop; loop = loop->next()) {
+                COEDGE *coedge = loop->coedge();
+                if (!coedge) {
+                    continue;
+                }
+
+                COEDGE *first_coedge = coedge;
+                do {
+                    EDGE *edge = coedge->edge();
+                    if (edge) {
+                        VERTEX *vertices[2] = {edge->start(), edge->end()};
+                        for (int i = 0; i < 2; ++i) {
+                            VERTEX *vertex = vertices[i];
+                            if (!vertex) {
+                                continue;
+                            }
+
+                            bool already_seen = false;
+                            for (size_t j = 0; j < seen_vertices.size(); ++j) {
+                                if (seen_vertices[j] == vertex) {
+                                    already_seen = true;
+                                    break;
+                                }
+                            }
+                            if (already_seen) {
+                                continue;
+                            }
+                            seen_vertices.push_back(vertex);
+
+                            int face_count = 0;
+                            EDGE *incident = vertex->edge();
+                            EDGE *first_incident = incident;
+                            if (incident) {
+                                do {
+                                    COEDGE *incident_coedge = incident->coedge();
+                                    COEDGE *first_incident_coedge = incident_coedge;
+                                    if (incident_coedge) {
+                                        do {
+                                            FACE *incident_face =
+                                                incident_coedge->loop() ?
+                                                incident_coedge->loop()->face() : NULL;
+                                            if (incident_face) {
+                                                ++face_count;
+                                            }
+                                            incident_coedge = incident_coedge->next();
+                                        } while (incident_coedge &&
+                                                 incident_coedge != first_incident_coedge);
+                                    }
+                                    incident = incident->next(vertex);
+                                } while (incident && incident != first_incident);
+                            }
+
+                            if (face_count > 0 && (face_count % 2) != 0) {
+                                insanity_data *id = new insanity_data();
+                                id->set_insanity_type(WARNING);
+                                id->set_description(
+                                    "Vertex may be non-manifold within lump."
+                                );
+                                ilist->add(id);
+                                if (status) *status |= LUMP_CHECK_NON_MANIFOLD_VTX;
+                                valid = FALSE;
+                            }
+                        }
+                    }
+
+                    coedge = coedge->next();
+                } while (coedge && coedge != first_coedge);
+            }
+        }
+    }
+
+    return valid;
 }
 
 outcome api_check_lump(
@@ -76,15 +182,17 @@ outcome api_check_lump(
 
     SHELL *shell = lump->shell();
     while (shell) {
-        result._shell_count++;
+        result.note_shell();
 
-        check_shell_faces_valid(shell, result.get_insanity_list(), &status);
-        result._bad_face_count++;
+        if (check_shell_faces_valid(shell, result.get_insanity_list(), &status) == FALSE) {
+            result.note_bad_face();
+        }
 
         FACE *face = shell->face();
         while (face) {
-            check_edge_curves_valid(face, result.get_insanity_list(), &status);
-            result._bad_edge_count++;
+            if (check_edge_curves_valid(face, result.get_insanity_list(), &status) == FALSE) {
+                result.note_bad_edge();
+            }
 
             check_coedge_sense(face, result.get_insanity_list(), &status);
 
@@ -110,6 +218,7 @@ outcome api_check_lump(
     check_lump_shell_orientation(lump, result.get_insanity_list(), &status);
     check_lump_face_adjacency(lump, result.get_insanity_list(), &status);
     check_lump_edge_manifold(lump, result.get_insanity_list(), &status);
+    check_lump_vertex_manifold(lump, result.get_insanity_list(), &status);
 
     result.set_status(status);
     return res;
@@ -253,8 +362,8 @@ logical check_lump_containment(
                         int outer_containment = point_in_shell(inner, outer_pt);
                         int inner_containment = point_in_shell(outer, inner_pt);
 
-                        if (outer_containment != 0) outer_inside_count++;
-                        if (inner_containment != 0) inner_inside_count++;
+                        if (is_inside_or_boundary(outer_containment)) outer_inside_count++;
+                        if (is_inside_or_boundary(inner_containment)) inner_inside_count++;
                         total_samples++;
                     } catch (...) {
                         // Skip on exception
@@ -262,20 +371,32 @@ logical check_lump_containment(
                 }
             }
 
-            // Use majority vote to determine containment relationship
+            // Use majority vote to determine containment relationship.
+            // Shells in the same lump should either be properly nested or
+            // clearly separated into different lumps; neither relation here
+            // is acceptable inside one lump.
             if (total_samples > 0) {
                 bool outer_inside_inner = (outer_inside_count > total_samples / 2);
                 bool inner_inside_outer = (inner_inside_count > total_samples / 2);
 
-                // Both shells inside each other = impossible (self-intersection)
-                // Neither shell inside the other = disjoint (valid for separate shells)
-                // One inside the other = proper containment (valid)
                 if (outer_inside_inner && inner_inside_outer) {
                     insanity_data *id = new insanity_data();
                     id->set_insanity_type(ERROR_TYPE);
                     id->set_description(
+                        "Shells intersect or mutually contain each other."
+                    );
+                    ilist->add(id);
+                    if (status) {
+                        *status |= LUMP_CHECK_INTERSECT_SHELLS;
+                        *status |= LUMP_CHECK_BAD_CONTAINMENT;
+                    }
+                    valid = FALSE;
+                } else if (!outer_inside_inner && !inner_inside_outer) {
+                    insanity_data *id = new insanity_data();
+                    id->set_insanity_type(ERROR_TYPE);
+                    id->set_description(
                         "Improper shell containment in lump: "
-                        "shells mutually contain each other."
+                        "shells have no valid nesting relation."
                     );
                     ilist->add(id);
                     if (status) *status |= LUMP_CHECK_BAD_CONTAINMENT;
@@ -571,7 +692,7 @@ logical check_lump_volume(
     }
 
     // Check for negative volume (indicates inverted normals)
-    if (total_volume < -SPAreabs) {
+    if (total_volume < -SPAresabs) {
         insanity_data *id = new insanity_data();
         id->set_insanity_type(WARNING);
         id->set_description("Lump has negative volume (possible inverted normals).");
@@ -622,6 +743,17 @@ logical check_lump_bounding_box(
                                     if (status) *status |= LUMP_CHECK_BAD_BOUNDING_BOX;
                                     valid = FALSE;
                                 }
+                                if (std::isinf(pos.x()) || std::isinf(pos.y()) ||
+                                    std::isinf(pos.z())) {
+                                    insanity_data *id = new insanity_data();
+                                    id->set_insanity_type(ERROR_TYPE);
+                                    id->set_description(
+                                        "Lump contains vertex with Inf in bounding box."
+                                    );
+                                    ilist->add(id);
+                                    if (status) *status |= LUMP_CHECK_BAD_BOUNDING_BOX;
+                                    valid = FALSE;
+                                }
                             }
 
                             if (v_end && v_end->point()) {
@@ -632,6 +764,17 @@ logical check_lump_bounding_box(
                                     id->set_insanity_type(ERROR_TYPE);
                                     id->set_description(
                                         "Lump contains vertex with NaN in bounding box."
+                                    );
+                                    ilist->add(id);
+                                    if (status) *status |= LUMP_CHECK_BAD_BOUNDING_BOX;
+                                    valid = FALSE;
+                                }
+                                if (std::isinf(pos.x()) || std::isinf(pos.y()) ||
+                                    std::isinf(pos.z())) {
+                                    insanity_data *id = new insanity_data();
+                                    id->set_insanity_type(ERROR_TYPE);
+                                    id->set_description(
+                                        "Lump contains vertex with Inf in bounding box."
                                     );
                                     ilist->add(id);
                                     if (status) *status |= LUMP_CHECK_BAD_BOUNDING_BOX;
@@ -846,6 +989,10 @@ int api_check_lump_status(
     }
 
     if (check_lump_edge_manifold(lump, &ilist, &status) == FALSE) {
+        count++;
+    }
+
+    if (check_lump_vertex_manifold(lump, &ilist, &status) == FALSE) {
         count++;
     }
 

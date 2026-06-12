@@ -37,6 +37,14 @@ int bs3_curve_check_result::degenerate_count() const {
     return _degenerate_count;
 }
 
+void bs3_curve_check_result::note_eval_failure() {
+    ++_eval_failure_count;
+}
+
+void bs3_curve_check_result::note_degenerate() {
+    ++_degenerate_count;
+}
+
 void bs3_curve_check_result::add_insanity(insanity_data *data) {
     if (data) {
         _insanities.add(data);
@@ -75,6 +83,13 @@ outcome api_bs3_curve_check(
     check_bs3_curve_vd_property(curve, result.get_insanity_list(), &status);
     check_bs3_curve_bounding_box(curve, result.get_insanity_list(), &status);
     check_bs3_curve_arc_length(curve, result.get_insanity_list(), &status);
+
+    if (status & BS3_CURVE_CHECK_EVAL_FAILURE) {
+        result.note_eval_failure();
+    }
+    if (status & BS3_CURVE_CHECK_DEGENERATE) {
+        result.note_degenerate();
+    }
 
     result.set_status(status);
     return res;
@@ -176,6 +191,20 @@ logical check_bs3_curve_control_points(
             id->set_description("BS3_CURVE control point has Inf coordinates.");
             ilist->add(id);
             if (status) *status |= BS3_CURVE_CHECK_NAN_COORDINATES;
+            valid = FALSE;
+            break;
+        }
+    }
+
+    for (int i = 1; i < num_cp; ++i) {
+        SPAposition prev = curve->control_point(i - 1);
+        SPAposition curr = curve->control_point(i);
+        if ((curr - prev).length() < SPAresabs) {
+            insanity_data *id = new insanity_data();
+            id->set_insanity_type(WARNING);
+            id->set_description("BS3_CURVE has coincident adjacent control points.");
+            ilist->add(id);
+            if (status) *status |= BS3_CURVE_CHECK_COINCIDENT_CPS;
             valid = FALSE;
             break;
         }
@@ -403,6 +432,15 @@ logical check_bs3_curve_fit_tolerance(
 
     logical valid = TRUE;
     double fit_tol = curve->fit_tolerance();
+
+    if (std::isnan(fit_tol) || std::isinf(fit_tol)) {
+        insanity_data *id = new insanity_data();
+        id->set_insanity_type(ERROR_TYPE);
+        id->set_description("BS3_CURVE fit tolerance is NaN or Inf.");
+        ilist->add(id);
+        if (status) *status |= BS3_CURVE_CHECK_BAD_FIT_TOL;
+        return FALSE;
+    }
 
     if (fit_tol < 0) {
         insanity_data *id = new insanity_data();

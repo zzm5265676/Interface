@@ -38,6 +38,14 @@ int surface_check_result::singularity_count() const {
     return _singularity_count;
 }
 
+void surface_check_result::note_eval_failure() {
+    ++_eval_failure_count;
+}
+
+void surface_check_result::note_singularity() {
+    ++_singularity_count;
+}
+
 void surface_check_result::add_insanity(insanity_data *data) {
     if (data) {
         _insanities.add(data);
@@ -75,6 +83,13 @@ outcome api_check_surface_ok(
     check_surface_uv_coordinates(surface, result.get_insanity_list(), &status);
     check_surface_area_degenerate(surface, result.get_insanity_list(), &status);
     check_surface_periodicity(surface, result.get_insanity_list(), &status);
+
+    if (status & SURF_CHECK_EVAL_FAILURE) {
+        result.note_eval_failure();
+    }
+    if (status & SURF_CHECK_BAD_SINGULARITY) {
+        result.note_singularity();
+    }
 
     result.set_status(status);
     return res;
@@ -406,9 +421,19 @@ logical check_surface_closure(
         if (is_closed_u) {
             SPApar_pos p1(u_range.low(), test_v);
             SPApar_pos p2(u_range.high(), test_v);
-
-            SPAposition pos1 = surface->eval_position(p1);
-            SPAposition pos2 = surface->eval_position(p2);
+            SPAposition pos1;
+            SPAposition pos2;
+            try {
+                pos1 = surface->eval_position(p1);
+                pos2 = surface->eval_position(p2);
+            } catch (...) {
+                insanity_data *id = new insanity_data();
+                id->set_insanity_type(ERROR_TYPE);
+                id->set_description("Surface U closure evaluation failed.");
+                ilist->add(id);
+                if (status) *status |= SURF_CHECK_EVAL_FAILURE;
+                return FALSE;
+            }
 
             if ((pos1 - pos2).length() > SPAresabs) {
                 insanity_data *id = new insanity_data();
@@ -417,7 +442,10 @@ logical check_surface_closure(
                     "Surface U closure mismatch."
                 );
                 ilist->add(id);
-                if (status) *status |= SURF_CHECK_BAD_CLOSURE;
+                if (status) {
+                    *status |= SURF_CHECK_BAD_CLOSURE;
+                    *status |= SURF_CHECK_NON_G0;
+                }
                 valid = FALSE;
             }
         }
@@ -425,9 +453,19 @@ logical check_surface_closure(
         if (is_closed_v) {
             SPApar_pos p1(test_u, v_range.low());
             SPApar_pos p2(test_u, v_range.high());
-
-            SPAposition pos1 = surface->eval_position(p1);
-            SPAposition pos2 = surface->eval_position(p2);
+            SPAposition pos1;
+            SPAposition pos2;
+            try {
+                pos1 = surface->eval_position(p1);
+                pos2 = surface->eval_position(p2);
+            } catch (...) {
+                insanity_data *id = new insanity_data();
+                id->set_insanity_type(ERROR_TYPE);
+                id->set_description("Surface V closure evaluation failed.");
+                ilist->add(id);
+                if (status) *status |= SURF_CHECK_EVAL_FAILURE;
+                return FALSE;
+            }
 
             if ((pos1 - pos2).length() > SPAresabs) {
                 insanity_data *id = new insanity_data();
@@ -436,7 +474,10 @@ logical check_surface_closure(
                     "Surface V closure mismatch."
                 );
                 ilist->add(id);
-                if (status) *status |= SURF_CHECK_BAD_CLOSURE;
+                if (status) {
+                    *status |= SURF_CHECK_BAD_CLOSURE;
+                    *status |= SURF_CHECK_NON_G0;
+                }
                 valid = FALSE;
             }
         }

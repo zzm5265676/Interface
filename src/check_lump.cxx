@@ -177,6 +177,7 @@ outcome api_check_lump(
 
     int status = LUMP_CHECK_OK;
 
+<<<<<<< HEAD
     if (check_lump_shells_valid(lump, result.get_insanity_list()) == FALSE) {
         if (lump->shell()) {
             status |= LUMP_CHECK_EMPTY_SHELL;
@@ -184,11 +185,15 @@ outcome api_check_lump(
             status |= LUMP_CHECK_NO_SHELL;
         }
     }
+=======
+    check_lump_shells_valid(lump, result.get_insanity_list(), &status);
+>>>>>>> 5b669d23a53d60b412b23abc0b2023797e15d235
 
     SHELL *shell = lump->shell();
     while (shell) {
         result.note_shell();
 
+<<<<<<< HEAD
         if (check_shell_faces_valid(shell, result.get_insanity_list()) == FALSE) {
             status |= LUMP_CHECK_DEGENERATE_FACE;
             result.note_bad_face();
@@ -200,18 +205,23 @@ outcome api_check_lump(
                 result.note_bad_edge();
                 status |= LUMP_CHECK_NULL_EDGE_CURVE;
             }
+=======
+        check_shell_faces_valid(shell, result.get_insanity_list(), &status);
+        result._bad_face_count++;
 
-            if (check_coedge_sense(face, result.get_insanity_list()) == FALSE) {
-                status |= LUMP_CHECK_BAD_COEDGE_SENSE;
-            }
+        FACE *face = shell->face();
+        while (face) {
+            check_edge_curves_valid(face, result.get_insanity_list(), &status);
+            result._bad_edge_count++;
+>>>>>>> 5b669d23a53d60b412b23abc0b2023797e15d235
+
+            check_coedge_sense(face, result.get_insanity_list(), &status);
 
             LOOP *loop = face->loop();
             while (loop) {
                 WIRE *wire = loop->wire();
                 while (wire) {
-                    if (check_wire_self_intersect(wire, result.get_insanity_list()) == FALSE) {
-                        status |= LUMP_CHECK_SHELL_SELF_INT;
-                    }
+                    check_wire_self_intersect(wire, result.get_insanity_list(), &status);
                     wire = wire->next();
                 }
                 loop = loop->next();
@@ -223,29 +233,12 @@ outcome api_check_lump(
         shell = shell->next();
     }
 
-    if (check_lump_containment(lump, result.get_insanity_list()) == FALSE) {
-        status |= LUMP_CHECK_BAD_CONTAINMENT;
-    }
-
-    if (check_lump_volume(lump, result.get_insanity_list()) == FALSE) {
-        status |= LUMP_CHECK_BAD_VOLUME;
-    }
-
-    if (check_lump_bounding_box(lump, result.get_insanity_list()) == FALSE) {
-        status |= LUMP_CHECK_BAD_BOUNDING_BOX;
-    }
-
-    if (check_lump_shell_orientation(lump, result.get_insanity_list()) == FALSE) {
-        status |= LUMP_CHECK_SHELL_ORIENT_MISMATCH;
-    }
-
-    if (check_lump_face_adjacency(lump, result.get_insanity_list()) == FALSE) {
-        status |= LUMP_CHECK_BAD_FACE_ADJACENCY;
-    }
-
-    if (check_lump_edge_manifold(lump, result.get_insanity_list()) == FALSE) {
-        status |= LUMP_CHECK_NON_MANIFOLD_EDGE;
-    }
+    check_lump_containment(lump, result.get_insanity_list(), &status);
+    check_lump_volume(lump, result.get_insanity_list(), &status);
+    check_lump_bounding_box(lump, result.get_insanity_list(), &status);
+    check_lump_shell_orientation(lump, result.get_insanity_list(), &status);
+    check_lump_face_adjacency(lump, result.get_insanity_list(), &status);
+    check_lump_edge_manifold(lump, result.get_insanity_list(), &status);
 
     if (check_lump_vertex_manifold(lump, result.get_insanity_list()) == FALSE) {
         status |= LUMP_CHECK_NON_MANIFOLD_VTX;
@@ -257,7 +250,8 @@ outcome api_check_lump(
 
 logical check_lump_shells_valid(
     LUMP   *lump,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int    *status
 ) {
     SHELL *shell = lump->shell();
 
@@ -266,6 +260,7 @@ logical check_lump_shells_valid(
         id->set_insanity_type(ERROR_TYPE);
         id->set_description("Lump has no shells.");
         ilist->add(id);
+        if (status) *status |= LUMP_CHECK_NO_SHELL;
         return FALSE;
     }
 
@@ -277,6 +272,7 @@ logical check_lump_shells_valid(
             id->set_insanity_type(WARNING);
             id->set_description("Shell contains no faces and no wires.");
             ilist->add(id);
+            if (status) *status |= LUMP_CHECK_EMPTY_SHELL;
             valid = FALSE;
         }
         shell = shell->next();
@@ -287,7 +283,8 @@ logical check_lump_shells_valid(
 
 logical check_shell_faces_valid(
     SHELL  *shell,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int    *status
 ) {
     logical valid = TRUE;
     FACE *face = shell->face();
@@ -298,6 +295,7 @@ logical check_shell_faces_valid(
             id->set_insanity_type(ERROR_TYPE);
             id->set_description("Face has null surface.");
             ilist->add(id);
+            if (status) *status |= LUMP_CHECK_DEGENERATE_FACE;
             valid = FALSE;
         }
 
@@ -309,6 +307,7 @@ logical check_shell_faces_valid(
                 id->set_insanity_type(ERROR_TYPE);
                 id->set_description("Loop has no coedge.");
                 ilist->add(id);
+                if (status) *status |= LUMP_CHECK_DEGENERATE_FACE;
                 valid = FALSE;
             }
             loop = loop->next();
@@ -322,14 +321,13 @@ logical check_shell_faces_valid(
 
 logical check_lump_containment(
     LUMP   *lump,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int    *status
 ) {
     int shell_count = 0;
-    SHELL *first_shell = NULL;
 
     SHELL *s = lump->shell();
     while (s) {
-        if (!first_shell) first_shell = s;
         shell_count++;
         s = s->next();
     }
@@ -339,6 +337,8 @@ logical check_lump_containment(
     }
 
     logical valid = TRUE;
+
+    // For each pair of shells, use multiple sample points to determine containment
     SHELL *outer = lump->shell();
     while (outer) {
         FACE *outer_face = outer->face();
@@ -355,16 +355,16 @@ logical check_lump_containment(
                 continue;
             }
 
-            SPAposition outer_pt = outer_face->equation_position(
-                (outer_face->start_u() + outer_face->end_u()) / 2.0,
-                (outer_face->start_v() + outer_face->end_v()) / 2.0
-            );
+            // Sample multiple points on each face for robust containment detection
+            SPApar_box outer_pb = outer_face->param_range();
+            SPApar_box inner_pb = inner_face->param_range();
 
-            SPAposition inner_pt = inner_face->equation_position(
-                (inner_face->start_u() + inner_face->end_u()) / 2.0,
-                (inner_face->start_v() + inner_face->end_v()) / 2.0
-            );
+            int num_samples = 3;
+            int outer_inside_count = 0;
+            int inner_inside_count = 0;
+            int total_samples = 0;
 
+<<<<<<< HEAD
             int outer_containment = point_in_shell(outer, outer_pt);
             int inner_containment = point_in_shell(inner, inner_pt);
             int inner_in_outer = point_in_shell(outer, inner_pt);
@@ -382,6 +382,58 @@ logical check_lump_containment(
                 );
                 ilist->add(id);
                 valid = FALSE;
+=======
+            for (int i = 0; i < num_samples; i++) {
+                for (int j = 0; j < num_samples; j++) {
+                    double u_frac = (i + 0.5) / num_samples;
+                    double v_frac = (j + 0.5) / num_samples;
+
+                    double outer_u = outer_pb.interval(0).low() +
+                        u_frac * (outer_pb.interval(0).high() - outer_pb.interval(0).low());
+                    double outer_v = outer_pb.interval(1).low() +
+                        v_frac * (outer_pb.interval(1).high() - outer_pb.interval(1).low());
+
+                    double inner_u = inner_pb.interval(0).low() +
+                        u_frac * (inner_pb.interval(0).high() - inner_pb.interval(0).low());
+                    double inner_v = inner_pb.interval(1).low() +
+                        v_frac * (inner_pb.interval(1).high() - inner_pb.interval(1).low());
+
+                    try {
+                        SPAposition outer_pt = outer_face->equation_position(outer_u, outer_v);
+                        SPAposition inner_pt = inner_face->equation_position(inner_u, inner_v);
+
+                        int outer_containment = point_in_shell(inner, outer_pt);
+                        int inner_containment = point_in_shell(outer, inner_pt);
+
+                        if (outer_containment != 0) outer_inside_count++;
+                        if (inner_containment != 0) inner_inside_count++;
+                        total_samples++;
+                    } catch (...) {
+                        // Skip on exception
+                    }
+                }
+            }
+
+            // Use majority vote to determine containment relationship
+            if (total_samples > 0) {
+                bool outer_inside_inner = (outer_inside_count > total_samples / 2);
+                bool inner_inside_outer = (inner_inside_count > total_samples / 2);
+
+                // Both shells inside each other = impossible (self-intersection)
+                // Neither shell inside the other = disjoint (valid for separate shells)
+                // One inside the other = proper containment (valid)
+                if (outer_inside_inner && inner_inside_outer) {
+                    insanity_data *id = new insanity_data();
+                    id->set_insanity_type(ERROR_TYPE);
+                    id->set_description(
+                        "Improper shell containment in lump: "
+                        "shells mutually contain each other."
+                    );
+                    ilist->add(id);
+                    if (status) *status |= LUMP_CHECK_BAD_CONTAINMENT;
+                    valid = FALSE;
+                }
+>>>>>>> 5b669d23a53d60b412b23abc0b2023797e15d235
             }
 
             inner = inner->next();
@@ -394,7 +446,8 @@ logical check_lump_containment(
 
 logical check_edge_curves_valid(
     FACE   *face,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int    *status
 ) {
     logical valid = TRUE;
     LOOP *loop = face->loop();
@@ -416,6 +469,7 @@ logical check_edge_curves_valid(
                     id->set_insanity_type(ERROR_TYPE);
                     id->set_description("Edge has null curve geometry.");
                     ilist->add(id);
+                    if (status) *status |= LUMP_CHECK_NULL_EDGE_CURVE;
                     valid = FALSE;
                 }
 
@@ -426,6 +480,7 @@ logical check_edge_curves_valid(
                     id->set_insanity_type(ERROR_TYPE);
                     id->set_description("Edge has null start or end vertex.");
                     ilist->add(id);
+                    if (status) *status |= LUMP_CHECK_NULL_EDGE_CURVE;
                     valid = FALSE;
                 } else {
                     if (!v_start->point()) {
@@ -433,6 +488,7 @@ logical check_edge_curves_valid(
                         id->set_insanity_type(ERROR_TYPE);
                         id->set_description("Start vertex has null point.");
                         ilist->add(id);
+                        if (status) *status |= LUMP_CHECK_NULL_EDGE_CURVE;
                         valid = FALSE;
                     }
                     if (!v_end->point()) {
@@ -440,6 +496,7 @@ logical check_edge_curves_valid(
                         id->set_insanity_type(ERROR_TYPE);
                         id->set_description("End vertex has null point.");
                         ilist->add(id);
+                        if (status) *status |= LUMP_CHECK_NULL_EDGE_CURVE;
                         valid = FALSE;
                     }
                 }
@@ -448,6 +505,7 @@ logical check_edge_curves_valid(
                 id->set_insanity_type(ERROR_TYPE);
                 id->set_description("Coedge has null edge.");
                 ilist->add(id);
+                if (status) *status |= LUMP_CHECK_NULL_EDGE_CURVE;
                 valid = FALSE;
             }
 
@@ -462,7 +520,8 @@ logical check_edge_curves_valid(
 
 logical check_coedge_sense(
     FACE   *face,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int    *status
 ) {
     logical valid = TRUE;
     LOOP *loop = face->loop();
@@ -485,6 +544,7 @@ logical check_coedge_sense(
                         "Coedge and its partner have the same sense."
                     );
                     ilist->add(id);
+                    if (status) *status |= LUMP_CHECK_BAD_COEDGE_SENSE;
                     valid = FALSE;
                 }
             }
@@ -500,7 +560,8 @@ logical check_coedge_sense(
 
 logical check_wire_self_intersect(
     WIRE   *wire,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int    *status
 ) {
     logical valid = TRUE;
     COEDGE *coedge = wire->coedge();
@@ -508,6 +569,7 @@ logical check_wire_self_intersect(
         return TRUE;
     }
 
+    logical valid = TRUE;
     COEDGE *first_coedge = coedge;
     do {
         COEDGE *other = coedge->next();
@@ -519,8 +581,8 @@ logical check_wire_self_intersect(
             EDGE *e2 = other->edge();
 
             if (e1 && e2 && e1 != e2) {
-                SPAintervalRange range1 = e1->param_range();
-                SPAintervalRange range2 = e2->param_range();
+                SPAinterval range1 = e1->param_range();
+                SPAinterval range2 = e2->param_range();
 
                 int num_int;
                 double *par1 = NULL;
@@ -550,6 +612,10 @@ logical check_wire_self_intersect(
                             "Wire self-intersection detected."
                         );
                         ilist->add(id);
+<<<<<<< HEAD
+=======
+                        if (status) *status |= LUMP_CHECK_SHELL_SELF_INT;
+>>>>>>> 5b669d23a53d60b412b23abc0b2023797e15d235
                         valid = FALSE;
                     }
                 }
@@ -571,7 +637,8 @@ logical check_wire_self_intersect(
 
 logical check_lump_volume(
     LUMP   *lump,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int    *status
 ) {
     if (!lump) {
         return FALSE;
@@ -585,25 +652,88 @@ logical check_lump_volume(
         id->set_insanity_type(WARNING);
         id->set_description("Lump has no owning body.");
         ilist->add(id);
+        if (status) *status |= LUMP_CHECK_BAD_VOLUME;
         valid = FALSE;
     }
 
     SHELL *shell = lump->shell();
     if (!shell) {
-        return TRUE;
-    }
-
-    int shell_count = 0;
-    while (shell) {
-        shell_count++;
-        shell = shell->next();
-    }
-
-    if (shell_count == 0) {
         insanity_data *id = new insanity_data();
         id->set_insanity_type(ERROR_TYPE);
         id->set_description("Lump has zero shells.");
         ilist->add(id);
+        if (status) *status |= LUMP_CHECK_BAD_VOLUME;
+        return FALSE;
+    }
+
+    // Compute approximate volume using divergence theorem:
+    // V = (1/3) * Σ (face_area * centroid · normal)
+    double total_volume = 0.0;
+    int num_samples = 8;
+
+    SHELL *s = lump->shell();
+    while (s) {
+        FACE *face = s->face();
+        while (face) {
+            SURFACE *surf = face->surfi();
+            if (surf) {
+                SPApar_box pb = face->param_range();
+                SPAinterval u_range = pb.interval(0);
+                SPAinterval v_range = pb.interval(1);
+
+                double u_step = (u_range.high() - u_range.low()) / num_samples;
+                double v_step = (v_range.high() - v_range.low()) / num_samples;
+
+                for (int i = 0; i < num_samples; i++) {
+                    for (int j = 0; j < num_samples; j++) {
+                        double u = u_range.low() + u_step * (i + 0.5);
+                        double v = v_range.low() + v_step * (j + 0.5);
+
+                        try {
+                            SPApar_pos pos(u, v);
+                            SPAvector du, dv;
+                            surf->eval_derivs(pos, du, dv);
+
+                            SPAvector normal = du * dv;
+                            SPAposition pt = surf->eval_position(pos);
+
+                            // Signed volume contribution: (1/3) * (pt · normal) * dA
+                            double dA = normal.length() * u_step * v_step;
+                            if (dA > SPAresabs) {
+                                SPAvector unit_normal = normal / normal.length();
+                                double contribution = (pt.x() * unit_normal.x() +
+                                                       pt.y() * unit_normal.y() +
+                                                       pt.z() * unit_normal.z()) * dA / 3.0;
+                                total_volume += contribution;
+                            }
+                        } catch (...) {
+                            // Skip on exception
+                        }
+                    }
+                }
+            }
+            face = face->next();
+        }
+        s = s->next();
+    }
+
+    // Check for NaN/Inf volume
+    if (std::isnan(total_volume) || std::isinf(total_volume)) {
+        insanity_data *id = new insanity_data();
+        id->set_insanity_type(ERROR_TYPE);
+        id->set_description("Lump volume computation resulted in NaN or Inf.");
+        ilist->add(id);
+        if (status) *status |= LUMP_CHECK_BAD_VOLUME;
+        valid = FALSE;
+    }
+
+    // Check for negative volume (indicates inverted normals)
+    if (total_volume < -SPAreabs) {
+        insanity_data *id = new insanity_data();
+        id->set_insanity_type(WARNING);
+        id->set_description("Lump has negative volume (possible inverted normals).");
+        ilist->add(id);
+        if (status) *status |= LUMP_CHECK_BAD_VOLUME;
         valid = FALSE;
     }
 
@@ -612,7 +742,8 @@ logical check_lump_volume(
 
 logical check_lump_bounding_box(
     LUMP   *lump,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int    *status
 ) {
     if (!lump) {
         return FALSE;
@@ -645,6 +776,7 @@ logical check_lump_bounding_box(
                                         "Lump contains vertex with NaN in bounding box."
                                     );
                                     ilist->add(id);
+                                    if (status) *status |= LUMP_CHECK_BAD_BOUNDING_BOX;
                                     valid = FALSE;
                                 }
                             }
@@ -659,6 +791,7 @@ logical check_lump_bounding_box(
                                         "Lump contains vertex with NaN in bounding box."
                                     );
                                     ilist->add(id);
+                                    if (status) *status |= LUMP_CHECK_BAD_BOUNDING_BOX;
                                     valid = FALSE;
                                 }
                             }
@@ -678,7 +811,8 @@ logical check_lump_bounding_box(
 
 logical check_lump_shell_orientation(
     LUMP   *lump,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int    *status
 ) {
     if (!lump) {
         return FALSE;
@@ -716,6 +850,7 @@ logical check_lump_shell_orientation(
                             "Shell has mixed coedge orientations in a loop."
                         );
                         ilist->add(id);
+                        if (status) *status |= LUMP_CHECK_SHELL_ORIENT_MISMATCH;
                         valid = FALSE;
                     }
                 }
@@ -731,7 +866,8 @@ logical check_lump_shell_orientation(
 
 logical check_lump_face_adjacency(
     LUMP   *lump,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int    *status
 ) {
     if (!lump) {
         return FALSE;
@@ -757,6 +893,7 @@ logical check_lump_face_adjacency(
                                 "Face has coedge without partner (free edge)."
                             );
                             ilist->add(id);
+                            if (status) *status |= LUMP_CHECK_BAD_FACE_ADJACENCY;
                             valid = FALSE;
                         }
                         coedge = coedge->next();
@@ -774,7 +911,8 @@ logical check_lump_face_adjacency(
 
 logical check_lump_edge_manifold(
     LUMP   *lump,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int    *status
 ) {
     if (!lump) {
         return FALSE;
@@ -811,6 +949,7 @@ logical check_lump_edge_manifold(
                                     "Edge is non-manifold (odd coedge count)."
                                 );
                                 ilist->add(id);
+                                if (status) *status |= LUMP_CHECK_NON_MANIFOLD_EDGE;
                                 valid = FALSE;
                             }
                         }
@@ -837,32 +976,33 @@ int api_check_lump_status(
 
     insanity_list ilist;
     int count = 0;
+    int status = LUMP_CHECK_OK;
 
-    if (check_lump_shells_valid(lump, &ilist) == FALSE) {
+    if (check_lump_shells_valid(lump, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_lump_containment(lump, &ilist) == FALSE) {
+    if (check_lump_containment(lump, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_lump_volume(lump, &ilist) == FALSE) {
+    if (check_lump_volume(lump, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_lump_bounding_box(lump, &ilist) == FALSE) {
+    if (check_lump_bounding_box(lump, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_lump_shell_orientation(lump, &ilist) == FALSE) {
+    if (check_lump_shell_orientation(lump, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_lump_face_adjacency(lump, &ilist) == FALSE) {
+    if (check_lump_face_adjacency(lump, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_lump_edge_manifold(lump, &ilist) == FALSE) {
+    if (check_lump_edge_manifold(lump, &ilist, &status) == FALSE) {
         count++;
     }
 
@@ -872,16 +1012,16 @@ int api_check_lump_status(
 
     SHELL *shell = lump->shell();
     while (shell) {
-        if (check_shell_faces_valid(shell, &ilist) == FALSE) {
+        if (check_shell_faces_valid(shell, &ilist, &status) == FALSE) {
             count++;
         }
 
         FACE *face = shell->face();
         while (face) {
-            if (check_edge_curves_valid(face, &ilist) == FALSE) {
+            if (check_edge_curves_valid(face, &ilist, &status) == FALSE) {
                 count++;
             }
-            if (check_coedge_sense(face, &ilist) == FALSE) {
+            if (check_coedge_sense(face, &ilist, &status) == FALSE) {
                 count++;
             }
             face = face->next();
@@ -894,6 +1034,7 @@ int api_check_lump_status(
         *insanity_count = count;
     }
 
+<<<<<<< HEAD
     int status = LUMP_CHECK_OK;
     insanity_data *entry = ilist.first();
     while (entry) {
@@ -943,5 +1084,7 @@ int api_check_lump_status(
         entry = entry->next();
     }
 
+=======
+>>>>>>> 5b669d23a53d60b412b23abc0b2023797e15d235
     return status;
 }

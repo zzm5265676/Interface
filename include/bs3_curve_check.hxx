@@ -58,77 +58,92 @@ outcome api_bs3_curve_check(
 
 logical check_bs3_curve_null(
     BS3_CURVE       *curve,
-    insanity_list   *ilist
+    insanity_list   *ilist,
+    int             *status = NULL
 );
 
 logical check_bs3_curve_order(
     BS3_CURVE       *curve,
-    insanity_list   *ilist
+    insanity_list   *ilist,
+    int             *status = NULL
 );
 
 logical check_bs3_curve_control_points(
     BS3_CURVE       *curve,
-    insanity_list   *ilist
+    insanity_list   *ilist,
+    int             *status = NULL
 );
 
 logical check_bs3_curve_knot_vector(
     BS3_CURVE       *curve,
-    insanity_list   *ilist
+    insanity_list   *ilist,
+    int             *status = NULL
 );
 
 logical check_bs3_curve_evaluation(
     BS3_CURVE       *curve,
-    insanity_list   *ilist
+    insanity_list   *ilist,
+    int             *status = NULL
 );
 
 logical check_bs3_curve_parameter_range(
     BS3_CURVE       *curve,
-    insanity_list   *ilist
+    insanity_list   *ilist,
+    int             *status = NULL
 );
 
 logical check_bs3_curve_closure(
     BS3_CURVE       *curve,
-    insanity_list   *ilist
+    insanity_list   *ilist,
+    int             *status = NULL
 );
 
 logical check_bs3_curve_fit_tolerance(
     BS3_CURVE       *curve,
-    insanity_list   *ilist
+    insanity_list   *ilist,
+    int             *status = NULL
 );
 
 logical check_bs3_curve_degeneracy(
     BS3_CURVE       *curve,
-    insanity_list   *ilist
+    insanity_list   *ilist,
+    int             *status = NULL
 );
 
 logical check_bs3_curve_derivatives(
     BS3_CURVE       *curve,
-    insanity_list   *ilist
+    insanity_list   *ilist,
+    int             *status = NULL
 );
 
 logical check_bs3_curve_knot_multiplicity(
     BS3_CURVE       *curve,
-    insanity_list   *ilist
+    insanity_list   *ilist,
+    int             *status = NULL
 );
 
 logical check_bs3_curve_convex_hull(
     BS3_CURVE       *curve,
-    insanity_list   *ilist
+    insanity_list   *ilist,
+    int             *status = NULL
 );
 
 logical check_bs3_curve_vd_property(
     BS3_CURVE       *curve,
-    insanity_list   *ilist
+    insanity_list   *ilist,
+    int             *status = NULL
 );
 
 logical check_bs3_curve_bounding_box(
     BS3_CURVE       *curve,
-    insanity_list   *ilist
+    insanity_list   *ilist,
+    int             *status = NULL
 );
 
 logical check_bs3_curve_arc_length(
     BS3_CURVE       *curve,
-    insanity_list   *ilist
+    insanity_list   *ilist,
+    int             *status = NULL
 );
 
 int bs3_curve_check(

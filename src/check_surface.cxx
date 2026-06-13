@@ -38,6 +38,14 @@ int surface_check_result::singularity_count() const {
     return _singularity_count;
 }
 
+void surface_check_result::note_eval_failure() {
+    ++_eval_failure_count;
+}
+
+void surface_check_result::note_singularity() {
+    ++_singularity_count;
+}
+
 void surface_check_result::add_insanity(insanity_data *data) {
     if (data) {
         _insanities.add(data);
@@ -59,104 +67,45 @@ outcome api_check_surface_ok(
         return outcome(API_NULL_ARGUMENT, FAIL, 0);
     }
 
-    check_surface_null(surface, result.get_insanity_list());
-
-    check_surface_evaluation(surface, result.get_insanity_list());
-
-    check_surface_parameter_range(surface, result.get_insanity_list());
-
-    check_surface_continuity(surface, result.get_insanity_list());
-
-    check_surface_singularity(surface, result.get_insanity_list());
-
-    check_surface_closure(surface, result.get_insanity_list());
-
-    check_surface_fit_tolerance(surface, result.get_insanity_list());
-
-    check_bspline_surface(surface, result.get_insanity_list());
-
-    check_surface_self_intersection(surface, result.get_insanity_list());
-
-    check_surface_normal_consistency(surface, result.get_insanity_list());
-
-    check_surface_g2_continuity(surface, result.get_insanity_list());
-
-    check_surface_uv_coordinates(surface, result.get_insanity_list());
-
-    check_surface_area_degenerate(surface, result.get_insanity_list());
-
-    check_surface_periodicity(surface, result.get_insanity_list());
-
     int status = SURF_CHECK_OK;
-    insanity_data *entry = result.get_insanity_list()->first();
-    while (entry) {
-        const char *desc = entry->get_description();
-        if (desc) {
-            if (strstr(desc, "null")) {
-                status |= SURF_CHECK_NULL_SURFACE;
-            }
-            if (strstr(desc, "NaN") || strstr(desc, "Inf")) {
-                status |= SURF_CHECK_NAN_COORDINATES;
-            }
-            if (strstr(desc, "evaluation")) {
-                status |= SURF_CHECK_EVAL_FAILURE;
-            }
-            if (strstr(desc, "parameter")) {
-                status |= SURF_CHECK_BAD_PARAMETER_RANGE;
-            }
-            if (strstr(desc, "closure") || strstr(desc, "closed")) {
-                status |= SURF_CHECK_BAD_CLOSURE;
-            }
-            if (strstr(desc, "singularity")) {
-                status |= SURF_CHECK_BAD_SINGULARITY;
-            }
-            if (strstr(desc, "tolerance")) {
-                status |= SURF_CHECK_BAD_FIT_TOLERANCE;
-            }
-            if (strstr(desc, "self-intersection")) {
-                status |= SURF_CHECK_SELF_INTERSECT;
-            }
-            if (strstr(desc, "normal")) {
-                status |= SURF_CHECK_BAD_NORMAL;
-            }
-            if (strstr(desc, "G0")) {
-                status |= SURF_CHECK_NON_G0;
-            }
-            if (strstr(desc, "G1")) {
-                status |= SURF_CHECK_NON_G1;
-            }
-            if (strstr(desc, "G2")) {
-                status |= SURF_CHECK_NON_G2;
-            }
-            if (strstr(desc, "UV")) {
-                status |= SURF_CHECK_BAD_UV_COORDINATES;
-            }
-            if (strstr(desc, "area")) {
-                status |= SURF_CHECK_DEGENERATE_AREA;
-            }
-            if (strstr(desc, "periodic")) {
-                status |= SURF_CHECK_BAD_PERIODICITY;
-            }
-            if (strstr(desc, "base surface")) {
-                status |= SURF_CHECK_ILLEGAL_SURFACE;
-            }
-        }
-        entry = entry->next();
-    }
-    result.set_status(status);
 
+    check_surface_null(surface, result.get_insanity_list(), &status);
+    check_surface_evaluation(surface, result.get_insanity_list(), &status);
+    check_surface_parameter_range(surface, result.get_insanity_list(), &status);
+    check_surface_continuity(surface, result.get_insanity_list(), &status);
+    check_surface_singularity(surface, result.get_insanity_list(), &status);
+    check_surface_closure(surface, result.get_insanity_list(), &status);
+    check_surface_fit_tolerance(surface, result.get_insanity_list(), &status);
+    check_bspline_surface(surface, result.get_insanity_list(), &status);
+    check_surface_self_intersection(surface, result.get_insanity_list(), &status);
+    check_surface_normal_consistency(surface, result.get_insanity_list(), &status);
+    check_surface_g2_continuity(surface, result.get_insanity_list(), &status);
+    check_surface_uv_coordinates(surface, result.get_insanity_list(), &status);
+    check_surface_area_degenerate(surface, result.get_insanity_list(), &status);
+    check_surface_periodicity(surface, result.get_insanity_list(), &status);
+
+    if (status & SURF_CHECK_EVAL_FAILURE) {
+        result.note_eval_failure();
+    }
+    if (status & SURF_CHECK_BAD_SINGULARITY) {
+        result.note_singularity();
+    }
+
+    result.set_status(status);
     return res;
 }
 
 logical check_surface_null(
     SURFACE       *surface,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status
 ) {
     if (!surface) {
         insanity_data *id = new insanity_data();
         id->set_insanity_type(ERROR_TYPE);
         id->set_description("Surface pointer is null.");
         ilist->add(id);
+        if (status) *status |= SURF_CHECK_NULL_SURFACE;
         return FALSE;
     }
 
@@ -165,7 +114,8 @@ logical check_surface_null(
 
 logical check_surface_evaluation(
     SURFACE       *surface,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status
 ) {
     if (!surface) {
         return FALSE;
@@ -197,8 +147,8 @@ logical check_surface_evaluation(
                     id->set_insanity_type(ERROR_TYPE);
                     id->set_description("Surface evaluation returned NaN.");
                     ilist->add(id);
-                    valid = FALSE;
-                    return valid;
+                    if (status) *status |= SURF_CHECK_EVAL_FAILURE;
+                    return FALSE;
                 }
 
                 if (std::isinf(pos.x()) || std::isinf(pos.y()) ||
@@ -207,16 +157,16 @@ logical check_surface_evaluation(
                     id->set_insanity_type(ERROR_TYPE);
                     id->set_description("Surface evaluation returned Inf.");
                     ilist->add(id);
-                    valid = FALSE;
-                    return valid;
+                    if (status) *status |= SURF_CHECK_EVAL_FAILURE;
+                    return FALSE;
                 }
             } catch (...) {
                 insanity_data *id = new insanity_data();
                 id->set_insanity_type(ERROR_TYPE);
                 id->set_description("Surface evaluation threw exception.");
                 ilist->add(id);
-                valid = FALSE;
-                return valid;
+                if (status) *status |= SURF_CHECK_EVAL_FAILURE;
+                return FALSE;
             }
         }
     }
@@ -226,7 +176,8 @@ logical check_surface_evaluation(
 
 logical check_surface_parameter_range(
     SURFACE       *surface,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status
 ) {
     if (!surface) {
         return FALSE;
@@ -241,6 +192,7 @@ logical check_surface_parameter_range(
         id->set_insanity_type(ERROR_TYPE);
         id->set_description("Surface parameter range is null.");
         ilist->add(id);
+        if (status) *status |= SURF_CHECK_BAD_PARAMETER_RANGE;
         return FALSE;
     }
 
@@ -249,6 +201,7 @@ logical check_surface_parameter_range(
         id->set_insanity_type(WARNING);
         id->set_description("Surface U parameter range is degenerate.");
         ilist->add(id);
+        if (status) *status |= SURF_CHECK_BAD_PARAMETER_RANGE;
     }
 
     if (v_range.high() - v_range.low() < SPAresabs) {
@@ -256,6 +209,7 @@ logical check_surface_parameter_range(
         id->set_insanity_type(WARNING);
         id->set_description("Surface V parameter range is degenerate.");
         ilist->add(id);
+        if (status) *status |= SURF_CHECK_BAD_PARAMETER_RANGE;
     }
 
     if (std::isnan(u_range.low()) || std::isnan(u_range.high()) ||
@@ -264,6 +218,7 @@ logical check_surface_parameter_range(
         id->set_insanity_type(ERROR_TYPE);
         id->set_description("Surface parameter range contains NaN.");
         ilist->add(id);
+        if (status) *status |= SURF_CHECK_NAN_COORDINATES;
         return FALSE;
     }
 
@@ -273,6 +228,7 @@ logical check_surface_parameter_range(
         id->set_insanity_type(ERROR_TYPE);
         id->set_description("Surface parameter range contains Inf.");
         ilist->add(id);
+        if (status) *status |= SURF_CHECK_NAN_COORDINATES;
         return FALSE;
     }
 
@@ -281,7 +237,8 @@ logical check_surface_parameter_range(
 
 logical check_surface_continuity(
     SURFACE       *surface,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status
 ) {
     if (!surface) {
         return FALSE;
@@ -321,6 +278,7 @@ logical check_surface_continuity(
                                 "Surface G1 discontinuity at U seam."
                             );
                             ilist->add(id);
+                            if (status) *status |= SURF_CHECK_NON_G1;
                             valid = FALSE;
                         }
                     }
@@ -354,6 +312,7 @@ logical check_surface_continuity(
                                 "Surface G1 discontinuity at V seam."
                             );
                             ilist->add(id);
+                            if (status) *status |= SURF_CHECK_NON_G1;
                             valid = FALSE;
                         }
                     }
@@ -369,7 +328,8 @@ logical check_surface_continuity(
 
 logical check_surface_singularity(
     SURFACE       *surface,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status
 ) {
     if (!surface) {
         return FALSE;
@@ -415,6 +375,7 @@ logical check_surface_singularity(
                                 "Surface singularity detected."
                             );
                             ilist->add(id);
+                            if (status) *status |= SURF_CHECK_BAD_SINGULARITY;
                             valid = FALSE;
                         }
                     }
@@ -426,6 +387,7 @@ logical check_surface_singularity(
                     "Surface derivative evaluation failed."
                 );
                 ilist->add(id);
+                if (status) *status |= SURF_CHECK_EVAL_FAILURE;
                 valid = FALSE;
             }
         }
@@ -436,7 +398,8 @@ logical check_surface_singularity(
 
 logical check_surface_closure(
     SURFACE       *surface,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status
 ) {
     if (!surface) {
         return FALSE;
@@ -458,9 +421,19 @@ logical check_surface_closure(
         if (is_closed_u) {
             SPApar_pos p1(u_range.low(), test_v);
             SPApar_pos p2(u_range.high(), test_v);
-
-            SPAposition pos1 = surface->eval_position(p1);
-            SPAposition pos2 = surface->eval_position(p2);
+            SPAposition pos1;
+            SPAposition pos2;
+            try {
+                pos1 = surface->eval_position(p1);
+                pos2 = surface->eval_position(p2);
+            } catch (...) {
+                insanity_data *id = new insanity_data();
+                id->set_insanity_type(ERROR_TYPE);
+                id->set_description("Surface U closure evaluation failed.");
+                ilist->add(id);
+                if (status) *status |= SURF_CHECK_EVAL_FAILURE;
+                return FALSE;
+            }
 
             if ((pos1 - pos2).length() > SPAresabs) {
                 insanity_data *id = new insanity_data();
@@ -469,6 +442,10 @@ logical check_surface_closure(
                     "Surface U closure mismatch."
                 );
                 ilist->add(id);
+                if (status) {
+                    *status |= SURF_CHECK_BAD_CLOSURE;
+                    *status |= SURF_CHECK_NON_G0;
+                }
                 valid = FALSE;
             }
         }
@@ -476,9 +453,19 @@ logical check_surface_closure(
         if (is_closed_v) {
             SPApar_pos p1(test_u, v_range.low());
             SPApar_pos p2(test_u, v_range.high());
-
-            SPAposition pos1 = surface->eval_position(p1);
-            SPAposition pos2 = surface->eval_position(p2);
+            SPAposition pos1;
+            SPAposition pos2;
+            try {
+                pos1 = surface->eval_position(p1);
+                pos2 = surface->eval_position(p2);
+            } catch (...) {
+                insanity_data *id = new insanity_data();
+                id->set_insanity_type(ERROR_TYPE);
+                id->set_description("Surface V closure evaluation failed.");
+                ilist->add(id);
+                if (status) *status |= SURF_CHECK_EVAL_FAILURE;
+                return FALSE;
+            }
 
             if ((pos1 - pos2).length() > SPAresabs) {
                 insanity_data *id = new insanity_data();
@@ -487,6 +474,10 @@ logical check_surface_closure(
                     "Surface V closure mismatch."
                 );
                 ilist->add(id);
+                if (status) {
+                    *status |= SURF_CHECK_BAD_CLOSURE;
+                    *status |= SURF_CHECK_NON_G0;
+                }
                 valid = FALSE;
             }
         }
@@ -497,7 +488,8 @@ logical check_surface_closure(
 
 logical check_surface_fit_tolerance(
     SURFACE       *surface,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status
 ) {
     if (!surface) {
         return FALSE;
@@ -506,11 +498,21 @@ logical check_surface_fit_tolerance(
     logical valid = TRUE;
     double fit_tol = surface->fit_tolerance();
 
+    if (std::isnan(fit_tol) || std::isinf(fit_tol)) {
+        insanity_data *id = new insanity_data();
+        id->set_insanity_type(ERROR_TYPE);
+        id->set_description("Surface fit tolerance is NaN or Inf.");
+        ilist->add(id);
+        if (status) *status |= SURF_CHECK_BAD_FIT_TOLERANCE;
+        valid = FALSE;
+    }
+
     if (fit_tol < 0) {
         insanity_data *id = new insanity_data();
         id->set_insanity_type(ERROR_TYPE);
         id->set_description("Surface fit tolerance is negative.");
         ilist->add(id);
+        if (status) *status |= SURF_CHECK_BAD_FIT_TOLERANCE;
         valid = FALSE;
     }
 
@@ -519,6 +521,7 @@ logical check_surface_fit_tolerance(
         id->set_insanity_type(WARNING);
         id->set_description("Surface fit tolerance is unusually large.");
         ilist->add(id);
+        if (status) *status |= SURF_CHECK_BAD_FIT_TOLERANCE;
     }
 
     return valid;
@@ -526,7 +529,8 @@ logical check_surface_fit_tolerance(
 
 logical check_bspline_surface(
     SURFACE       *surface,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status
 ) {
     if (!surface) {
         return FALSE;
@@ -544,6 +548,7 @@ logical check_bspline_surface(
         id->set_insanity_type(ERROR_TYPE);
         id->set_description("B-spline surface has null base surface.");
         ilist->add(id);
+        if (status) *status |= SURF_CHECK_ILLEGAL_SURFACE;
         return FALSE;
     }
 
@@ -557,6 +562,7 @@ logical check_bspline_surface(
         id->set_insanity_type(ERROR_TYPE);
         id->set_description("B-spline surface has invalid order.");
         ilist->add(id);
+        if (status) *status |= SURF_CHECK_ILLEGAL_SURFACE;
         valid = FALSE;
     }
 
@@ -567,38 +573,41 @@ logical check_bspline_surface(
             "B-spline surface: control points < order."
         );
         ilist->add(id);
+        if (status) *status |= SURF_CHECK_ILLEGAL_SURFACE;
         valid = FALSE;
     }
 
-    if (!bs->closed_u()) {
-        for (int i = 0; i < u_num_cp; i++) {
-            SPAposition cp1 = bs->control_point(i, 0);
-            SPAposition cp2 = bs->control_point(i, v_num_cp - 1);
+    for (int i = 0; i < u_num_cp - 1; i++) {
+        for (int j = 0; j < v_num_cp; j++) {
+            SPAposition cp1 = bs->control_point(i, j);
+            SPAposition cp2 = bs->control_point(i + 1, j);
 
             if ((cp1 - cp2).length() < SPAresabs) {
                 insanity_data *id = new insanity_data();
                 id->set_insanity_type(WARNING);
                 id->set_description(
-                    "Adjacent B-spline control vertices coincident."
+                    "Adjacent B-spline control vertices coincident in U."
                 );
                 ilist->add(id);
+                if (status) *status |= SURF_CHECK_ILLEGAL_SURFACE;
                 valid = FALSE;
             }
         }
     }
 
-    if (!bs->closed_v()) {
-        for (int i = 0; i < v_num_cp; i++) {
-            SPAposition cp1 = bs->control_point(0, i);
-            SPAposition cp2 = bs->control_point(u_num_cp - 1, i);
+    for (int i = 0; i < u_num_cp; i++) {
+        for (int j = 0; j < v_num_cp - 1; j++) {
+            SPAposition cp1 = bs->control_point(i, j);
+            SPAposition cp2 = bs->control_point(i, j + 1);
 
             if ((cp1 - cp2).length() < SPAresabs) {
                 insanity_data *id = new insanity_data();
                 id->set_insanity_type(WARNING);
                 id->set_description(
-                    "Adjacent B-spline control vertices coincident."
+                    "Adjacent B-spline control vertices coincident in V."
                 );
                 ilist->add(id);
+                if (status) *status |= SURF_CHECK_ILLEGAL_SURFACE;
                 valid = FALSE;
             }
         }
@@ -609,14 +618,15 @@ logical check_bspline_surface(
 
 logical check_surface_self_intersection(
     SURFACE       *surface,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status
 ) {
     if (!surface) {
         return FALSE;
     }
 
     logical valid = TRUE;
-    int num_samples = 10;
+    int num_samples = 15;
     SPApar_box pb = surface->param_range();
     SPAinterval u_range = pb.interval(0);
     SPAinterval v_range = pb.interval(1);
@@ -624,66 +634,107 @@ logical check_surface_self_intersection(
     double u_step = (u_range.high() - u_range.low()) / num_samples;
     double v_step = (v_range.high() - v_range.low()) / num_samples;
 
-    for (int i = 0; i < num_samples; i++) {
-        for (int j = 0; j < num_samples; j++) {
-            double u1 = u_range.low() + u_step * i;
-            double v1 = v_range.low() + v_step * j;
-            double u2 = u_range.low() + u_step * (i + 1);
-            double v2 = v_range.low() + v_step * (j + 1);
+    // Pre-compute normals on a grid and check for sign flips
+    // A sign flip in the normal dot product between adjacent cells
+    // indicates a possible self-intersection or orientation reversal
+    SPAvector **normals = new SPAvector*[num_samples + 1];
+    for (int i = 0; i <= num_samples; i++) {
+        normals[i] = new SPAvector[num_samples + 1];
+    }
 
-            SPApar_pos corners[4];
-            corners[0] = SPApar_pos(u1, v1);
-            corners[1] = SPApar_pos(u2, v1);
-            corners[2] = SPApar_pos(u2, v2);
-            corners[3] = SPApar_pos(u1, v2);
+    bool eval_failed = false;
 
-            SPAposition pts[4];
-            for (int k = 0; k < 4; k++) {
-                pts[k] = surface->eval_position(corners[k]);
-            }
+    for (int i = 0; i <= num_samples && !eval_failed; i++) {
+        for (int j = 0; j <= num_samples && !eval_failed; j++) {
+            double u = u_range.low() + u_step * i;
+            double v = v_range.low() + v_step * j;
 
-            double max_dist = 0.0;
-            for (int a = 0; a < 4; a++) {
-                for (int b = a + 1; b < 4; b++) {
-                    double d = (pts[a] - pts[b]).length();
-                    if (d > max_dist) {
-                        max_dist = d;
-                    }
+            SPApar_pos pos(u, v);
+            SPAvector du, dv;
+
+            try {
+                surface->eval_derivs(pos, du, dv);
+                SPAvector normal = du * dv;
+                double len = normal.length();
+                if (len > SPAresabs) {
+                    normals[i][j] = normal / len;
+                } else {
+                    normals[i][j] = SPAvector(0, 0, 0);
                 }
-            }
-
-            if (max_dist > (u_range.high() - u_range.low()) *
-                           (v_range.high() - v_range.low()) * 0.5) {
-                SPAposition center;
-                center = (pts[0] + pts[1] + pts[2] + pts[3]) / 4.0;
-
-                double min_dist = max_dist;
-                for (int a = 0; a < 4; a++) {
-                    double d = (center - pts[a]).length();
-                    if (d < min_dist) {
-                        min_dist = d;
-                    }
-                }
-
-                if (min_dist < SPAresabs * 100) {
-                    insanity_data *id = new insanity_data();
-                    id->set_insanity_type(WARNING);
-                    id->set_description(
-                        "Possible surface self-intersection."
-                    );
-                    ilist->add(id);
-                    valid = FALSE;
-                }
+            } catch (...) {
+                eval_failed = true;
             }
         }
     }
+
+    if (!eval_failed) {
+        // Check for normal sign flips between adjacent grid cells
+        for (int i = 0; i < num_samples; i++) {
+            for (int j = 0; j < num_samples; j++) {
+                SPAvector n00 = normals[i][j];
+                SPAvector n10 = normals[i + 1][j];
+                SPAvector n01 = normals[i][j + 1];
+                SPAvector n11 = normals[i + 1][j + 1];
+
+                // Skip cells with degenerate normals
+                if (n00.length() < SPAresabs || n10.length() < SPAresabs ||
+                    n01.length() < SPAresabs || n11.length() < SPAresabs) {
+                    continue;
+                }
+
+                // Check if normal flips direction between adjacent cells
+                double dot_u = n00 | n10;
+                double dot_v = n00 | n01;
+                double dot_diag = n00 | n11;
+
+                // A negative dot product between adjacent cell normals
+                // indicates a possible fold or self-intersection
+                if (dot_u < -0.5 || dot_v < -0.5 || dot_diag < -0.5) {
+                    // Verify by checking if the surface actually crosses itself
+                    // using cell bounding box overlap in 3D
+                    SPAposition p00 = surface->eval_position(
+                        SPApar_pos(u_range.low() + u_step * i,
+                                   v_range.low() + v_step * j));
+                    SPAposition p11 = surface->eval_position(
+                        SPApar_pos(u_range.low() + u_step * (i + 1),
+                                   v_range.low() + v_step * (j + 1)));
+
+                    double cell_diag = (p11 - p00).length();
+                    double param_diag = sqrt(u_step * u_step + v_step * v_step);
+
+                    // If 3D distance is much smaller than parameter distance,
+                    // the surface may be folding over itself
+                    if (cell_diag < param_diag * SPAresabs * 10 &&
+                        cell_diag > SPAresabs) {
+                        insanity_data *id = new insanity_data();
+                        id->set_insanity_type(WARNING);
+                        id->set_description(
+                            "Possible surface self-intersection: normal flip detected."
+                        );
+                        ilist->add(id);
+                        if (status) *status |= SURF_CHECK_SELF_INTERSECT;
+                        valid = FALSE;
+                        break;
+                    }
+                }
+            }
+            if (!valid) break;
+        }
+    }
+
+    // Clean up
+    for (int i = 0; i <= num_samples; i++) {
+        delete[] normals[i];
+    }
+    delete[] normals;
 
     return valid;
 }
 
 logical check_surface_normal_consistency(
     SURFACE       *surface,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status
 ) {
     if (!surface) {
         return FALSE;
@@ -723,8 +774,8 @@ logical check_surface_normal_consistency(
                     id->set_insanity_type(ERROR_TYPE);
                     id->set_description("Surface normal has NaN components.");
                     ilist->add(id);
-                    valid = FALSE;
-                    return valid;
+                    if (status) *status |= SURF_CHECK_BAD_NORMAL;
+                    return FALSE;
                 }
 
                 if (std::isinf(normal.x()) || std::isinf(normal.y()) ||
@@ -733,16 +784,16 @@ logical check_surface_normal_consistency(
                     id->set_insanity_type(ERROR_TYPE);
                     id->set_description("Surface normal has Inf components.");
                     ilist->add(id);
-                    valid = FALSE;
-                    return valid;
+                    if (status) *status |= SURF_CHECK_BAD_NORMAL;
+                    return FALSE;
                 }
             } catch (...) {
                 insanity_data *id = new insanity_data();
                 id->set_insanity_type(ERROR_TYPE);
                 id->set_description("Surface normal evaluation failed.");
                 ilist->add(id);
-                valid = FALSE;
-                return valid;
+                if (status) *status |= SURF_CHECK_EVAL_FAILURE;
+                return FALSE;
             }
         }
     }
@@ -752,7 +803,8 @@ logical check_surface_normal_consistency(
 
 logical check_surface_g2_continuity(
     SURFACE       *surface,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status
 ) {
     if (!surface) {
         return FALSE;
@@ -796,6 +848,7 @@ logical check_surface_g2_continuity(
                             "Surface G1 discontinuity at U seam."
                         );
                         ilist->add(id);
+                        if (status) *status |= SURF_CHECK_NON_G1;
                         valid = FALSE;
                     }
                 }
@@ -823,6 +876,7 @@ logical check_surface_g2_continuity(
                             "Surface G2 discontinuity at U seam."
                         );
                         ilist->add(id);
+                        if (status) *status |= SURF_CHECK_NON_G2;
                         valid = FALSE;
                     }
                 }
@@ -860,6 +914,7 @@ logical check_surface_g2_continuity(
                             "Surface G1 discontinuity at V seam."
                         );
                         ilist->add(id);
+                        if (status) *status |= SURF_CHECK_NON_G1;
                         valid = FALSE;
                     }
                 }
@@ -886,6 +941,7 @@ logical check_surface_g2_continuity(
                             "Surface G2 discontinuity at V seam."
                         );
                         ilist->add(id);
+                        if (status) *status |= SURF_CHECK_NON_G2;
                         valid = FALSE;
                     }
                 }
@@ -900,7 +956,8 @@ logical check_surface_g2_continuity(
 
 logical check_surface_uv_coordinates(
     SURFACE       *surface,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status
 ) {
     if (!surface) {
         return FALSE;
@@ -924,8 +981,8 @@ logical check_surface_uv_coordinates(
                 id->set_insanity_type(ERROR_TYPE);
                 id->set_description("Surface UV coordinate is NaN.");
                 ilist->add(id);
-                valid = FALSE;
-                return valid;
+                if (status) *status |= SURF_CHECK_BAD_UV_COORDINATES;
+                return FALSE;
             }
 
             if (std::isinf(u) || std::isinf(v)) {
@@ -933,8 +990,8 @@ logical check_surface_uv_coordinates(
                 id->set_insanity_type(ERROR_TYPE);
                 id->set_description("Surface UV coordinate is Inf.");
                 ilist->add(id);
-                valid = FALSE;
-                return valid;
+                if (status) *status |= SURF_CHECK_BAD_UV_COORDINATES;
+                return FALSE;
             }
         }
     }
@@ -944,7 +1001,8 @@ logical check_surface_uv_coordinates(
 
 logical check_surface_area_degenerate(
     SURFACE       *surface,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status
 ) {
     if (!surface) {
         return FALSE;
@@ -983,6 +1041,7 @@ logical check_surface_area_degenerate(
         id->set_insanity_type(WARNING);
         id->set_description("Surface area is near zero (degenerate).");
         ilist->add(id);
+        if (status) *status |= SURF_CHECK_DEGENERATE_AREA;
         valid = FALSE;
     }
 
@@ -991,7 +1050,8 @@ logical check_surface_area_degenerate(
 
 logical check_surface_periodicity(
     SURFACE       *surface,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status
 ) {
     if (!surface) {
         return FALSE;
@@ -1006,6 +1066,7 @@ logical check_surface_periodicity(
             "Surface is periodic in U but not closed."
         );
         ilist->add(id);
+        if (status) *status |= SURF_CHECK_BAD_PERIODICITY;
         valid = FALSE;
     }
 
@@ -1016,6 +1077,7 @@ logical check_surface_periodicity(
             "Surface is periodic in V but not closed."
         );
         ilist->add(id);
+        if (status) *status |= SURF_CHECK_BAD_PERIODICITY;
         valid = FALSE;
     }
 
@@ -1026,6 +1088,7 @@ logical check_surface_periodicity(
             "Surface is closed in U but not periodic."
         );
         ilist->add(id);
+        if (status) *status |= SURF_CHECK_BAD_PERIODICITY;
         valid = FALSE;
     }
 
@@ -1036,6 +1099,7 @@ logical check_surface_periodicity(
             "Surface is closed in V but not periodic."
         );
         ilist->add(id);
+        if (status) *status |= SURF_CHECK_BAD_PERIODICITY;
         valid = FALSE;
     }
 
@@ -1052,123 +1116,66 @@ int check_surface_ok(
 
     insanity_list ilist;
     int count = 0;
+    int status = SURF_CHECK_OK;
 
-    if (check_surface_null(surface, &ilist) == FALSE) {
+    if (check_surface_null(surface, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_surface_evaluation(surface, &ilist) == FALSE) {
+    if (check_surface_evaluation(surface, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_surface_parameter_range(surface, &ilist) == FALSE) {
+    if (check_surface_parameter_range(surface, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_surface_continuity(surface, &ilist) == FALSE) {
+    if (check_surface_continuity(surface, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_surface_singularity(surface, &ilist) == FALSE) {
+    if (check_surface_singularity(surface, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_surface_closure(surface, &ilist) == FALSE) {
+    if (check_surface_closure(surface, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_surface_fit_tolerance(surface, &ilist) == FALSE) {
+    if (check_surface_fit_tolerance(surface, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_bspline_surface(surface, &ilist) == FALSE) {
+    if (check_bspline_surface(surface, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_surface_self_intersection(surface, &ilist) == FALSE) {
+    if (check_surface_self_intersection(surface, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_surface_normal_consistency(surface, &ilist) == FALSE) {
+    if (check_surface_normal_consistency(surface, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_surface_g2_continuity(surface, &ilist) == FALSE) {
+    if (check_surface_g2_continuity(surface, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_surface_uv_coordinates(surface, &ilist) == FALSE) {
+    if (check_surface_uv_coordinates(surface, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_surface_area_degenerate(surface, &ilist) == FALSE) {
+    if (check_surface_area_degenerate(surface, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_surface_periodicity(surface, &ilist) == FALSE) {
+    if (check_surface_periodicity(surface, &ilist, &status) == FALSE) {
         count++;
     }
 
     if (insanity_count) {
         *insanity_count = count;
-    }
-
-    int status = SURF_CHECK_OK;
-    insanity_data *entry = ilist.first();
-    while (entry) {
-        const char *desc = entry->get_description();
-        if (desc) {
-            if (strstr(desc, "null")) {
-                status |= SURF_CHECK_NULL_SURFACE;
-            }
-            if (strstr(desc, "NaN") || strstr(desc, "Inf")) {
-                status |= SURF_CHECK_NAN_COORDINATES;
-            }
-            if (strstr(desc, "evaluation")) {
-                status |= SURF_CHECK_EVAL_FAILURE;
-            }
-            if (strstr(desc, "parameter")) {
-                status |= SURF_CHECK_BAD_PARAMETER_RANGE;
-            }
-            if (strstr(desc, "closure") || strstr(desc, "closed")) {
-                status |= SURF_CHECK_BAD_CLOSURE;
-            }
-            if (strstr(desc, "singularity")) {
-                status |= SURF_CHECK_BAD_SINGULARITY;
-            }
-            if (strstr(desc, "tolerance")) {
-                status |= SURF_CHECK_BAD_FIT_TOLERANCE;
-            }
-            if (strstr(desc, "self-intersection")) {
-                status |= SURF_CHECK_SELF_INTERSECT;
-            }
-            if (strstr(desc, "normal")) {
-                status |= SURF_CHECK_BAD_NORMAL;
-            }
-            if (strstr(desc, "G1")) {
-                status |= SURF_CHECK_NON_G1;
-            }
-            if (strstr(desc, "G2")) {
-                status |= SURF_CHECK_NON_G2;
-            }
-            if (strstr(desc, "UV")) {
-                status |= SURF_CHECK_BAD_UV_COORDINATES;
-            }
-            if (strstr(desc, "area")) {
-                status |= SURF_CHECK_DEGENERATE_AREA;
-            }
-            if (strstr(desc, "periodic")) {
-                status |= SURF_CHECK_BAD_PERIODICITY;
-            }
-            if (strstr(desc, "G0")) {
-                status |= SURF_CHECK_NON_G0;
-            }
-            if (strstr(desc, "base surface")) {
-                status |= SURF_CHECK_ILLEGAL_SURFACE;
-            }
-        }
-
-        entry = entry->next();
     }
 
     return status;

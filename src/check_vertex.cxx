@@ -48,6 +48,18 @@ int vertex_check_result::non_manifold_count() const {
     return _non_manifold_count;
 }
 
+void vertex_check_result::note_edge() {
+    ++_edge_count;
+}
+
+void vertex_check_result::note_bad_edge() {
+    ++_bad_edge_count;
+}
+
+void vertex_check_result::note_non_manifold() {
+    ++_non_manifold_count;
+}
+
 void vertex_check_result::add_insanity(insanity_data *data) {
     if (data) {
         _insanities.add(data);
@@ -69,78 +81,43 @@ outcome api_check_vertex_errors(
         return outcome(API_NULL_ARGUMENT, FAIL, 0);
     }
 
-    check_vertex_point_valid(vertex, result.get_insanity_list());
-
-    check_vertex_edges_valid(vertex, result.get_insanity_list());
-
-    check_vertex_edge_curves(vertex, result.get_insanity_list());
-
-    check_vertex_coincident(vertex, result.get_insanity_list());
-
-    check_vertex_edge_sense(vertex, result.get_insanity_list());
-
-    check_vertex_manifold(vertex, result.get_insanity_list());
-
-    check_vertex_bounding_box(vertex, result.get_insanity_list());
-
-    check_vertex_normal_consistency(vertex, result.get_insanity_list());
-
-    check_vertex_tolerance(vertex, result.get_insanity_list());
-
-    check_vertex_sharp_angle(vertex, result.get_insanity_list());
-
     int status = VTX_CHECK_OK;
-    insanity_data *entry = result.get_insanity_list()->first();
-    while (entry) {
-        const char *desc = entry->get_description();
-        if (desc) {
-            if (strstr(desc, "null") || strstr(desc, "Null")) {
-                status |= VTX_CHECK_NULL_POINT;
-            }
-            if (strstr(desc, "no incident edges")) {
-                status |= VTX_CHECK_NO_EDGES;
-            }
-            if (strstr(desc, "degenerate")) {
-                status |= VTX_CHECK_DEGENERATE_EDGE;
-            }
-            if (strstr(desc, "curve")) {
-                status |= VTX_CHECK_BAD_EDGE_CURVE;
-            }
-            if (strstr(desc, "sense")) {
-                status |= VTX_CHECK_EDGE_SENSE_MISMATCH;
-            }
-            if (strstr(desc, "non-manifold")) {
-                status |= VTX_CHECK_NON_MANIFOLD;
-            }
-            if (strstr(desc, "coincident")) {
-                status |= VTX_CHECK_COINCIDENT_VERTICES;
-            }
-            if (strstr(desc, "not at curve")) {
-                status |= VTX_CHECK_POINT_NOT_ON_CURVE;
-            }
-            if (strstr(desc, "bounding box")) {
-                status |= VTX_CHECK_BAD_BOUNDING_BOX;
-            }
-            if (strstr(desc, "normal")) {
-                status |= VTX_CHECK_BAD_NORMAL_CONSISTENCY;
-            }
-            if (strstr(desc, "tolerance")) {
-                status |= VTX_CHECK_BAD_TOLERANCE;
-            }
-            if (strstr(desc, "sharp")) {
-                status |= VTX_CHECK_SHARP_ANGLE;
-            }
-        }
-        entry = entry->next();
-    }
-    result.set_status(status);
 
+    check_vertex_point_valid(vertex, result.get_insanity_list(), &status);
+    check_vertex_edges_valid(vertex, result.get_insanity_list(), &status);
+    check_vertex_edge_curves(vertex, result.get_insanity_list(), &status);
+    check_vertex_coincident(vertex, result.get_insanity_list(), &status);
+    check_vertex_edge_sense(vertex, result.get_insanity_list(), &status);
+    check_vertex_manifold(vertex, result.get_insanity_list(), &status);
+    check_vertex_bounding_box(vertex, result.get_insanity_list(), &status);
+    check_vertex_normal_consistency(vertex, result.get_insanity_list(), &status);
+    check_vertex_tolerance(vertex, result.get_insanity_list(), &status);
+    check_vertex_sharp_angle(vertex, result.get_insanity_list(), &status);
+
+    EDGE *edge = vertex->edge();
+    EDGE *first_edge = edge;
+    if (edge) {
+        do {
+            result.note_edge();
+            if (!edge->start() || !edge->end() || !edge->curfi()) {
+                result.note_bad_edge();
+            }
+            edge = edge->next(vertex);
+        } while (edge && edge != first_edge);
+    }
+
+    if (status & VTX_CHECK_NON_MANIFOLD) {
+        result.note_non_manifold();
+    }
+
+    result.set_status(status);
     return res;
 }
 
 logical check_vertex_point_valid(
     VERTEX        *vertex,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status
 ) {
     POINT *pt = vertex->point();
     if (!pt) {
@@ -148,6 +125,7 @@ logical check_vertex_point_valid(
         id->set_insanity_type(ERROR_TYPE);
         id->set_description("Vertex has null point geometry.");
         ilist->add(id);
+        if (status) *status |= VTX_CHECK_NULL_POINT;
         return FALSE;
     }
 
@@ -158,6 +136,7 @@ logical check_vertex_point_valid(
         id->set_insanity_type(ERROR_TYPE);
         id->set_description("Vertex point has NaN coordinates.");
         ilist->add(id);
+        if (status) *status |= VTX_CHECK_NULL_POINT;
         return FALSE;
     }
 
@@ -166,6 +145,7 @@ logical check_vertex_point_valid(
         id->set_insanity_type(ERROR_TYPE);
         id->set_description("Vertex point has infinite coordinates.");
         ilist->add(id);
+        if (status) *status |= VTX_CHECK_NULL_POINT;
         return FALSE;
     }
 
@@ -174,7 +154,8 @@ logical check_vertex_point_valid(
 
 logical check_vertex_edges_valid(
     VERTEX        *vertex,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status
 ) {
     logical valid = TRUE;
 
@@ -187,6 +168,7 @@ logical check_vertex_edges_valid(
         id->set_insanity_type(WARNING);
         id->set_description("Vertex has no incident edges.");
         ilist->add(id);
+        if (status) *status |= VTX_CHECK_NO_EDGES;
         return FALSE;
     }
 
@@ -200,6 +182,7 @@ logical check_vertex_edges_valid(
             id->set_insanity_type(ERROR_TYPE);
             id->set_description("Edge has null start or end vertex.");
             ilist->add(id);
+            if (status) *status |= VTX_CHECK_DEGENERATE_EDGE;
             valid = FALSE;
         } else {
             POINT *pt_start = v_start->point();
@@ -209,6 +192,7 @@ logical check_vertex_edges_valid(
                 id->set_insanity_type(ERROR_TYPE);
                 id->set_description("Edge vertex has null point.");
                 ilist->add(id);
+                if (status) *status |= VTX_CHECK_DEGENERATE_EDGE;
                 valid = FALSE;
             } else {
                 SPAposition start_pos = pt_start->position();
@@ -220,6 +204,7 @@ logical check_vertex_edges_valid(
                     id->set_insanity_type(WARNING);
                     id->set_description("Edge is degenerate (zero length).");
                     ilist->add(id);
+                    if (status) *status |= VTX_CHECK_DEGENERATE_EDGE;
                     valid = FALSE;
                 }
             }
@@ -233,7 +218,8 @@ logical check_vertex_edges_valid(
 
 logical check_vertex_edge_curves(
     VERTEX        *vertex,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status
 ) {
     logical valid = TRUE;
     POINT *v_pt = vertex->point();
@@ -256,13 +242,26 @@ logical check_vertex_edge_curves(
             id->set_insanity_type(ERROR_TYPE);
             id->set_description("Edge has null curve geometry.");
             ilist->add(id);
+            if (status) *status |= VTX_CHECK_BAD_EDGE_CURVE;
             valid = FALSE;
         } else {
             double start_param = edge->start_param();
             double end_param = edge->end_param();
-
-            double start_dist = (curve->eval_position(start_param) - vtx_pos).length();
-            double end_dist = (curve->eval_position(end_param) - vtx_pos).length();
+            double start_dist = 0.0;
+            double end_dist = 0.0;
+            try {
+                start_dist = (curve->eval_position(start_param) - vtx_pos).length();
+                end_dist = (curve->eval_position(end_param) - vtx_pos).length();
+            } catch (...) {
+                insanity_data *id = new insanity_data();
+                id->set_insanity_type(ERROR_TYPE);
+                id->set_description("Edge curve evaluation failed at vertex.");
+                ilist->add(id);
+                if (status) *status |= VTX_CHECK_BAD_EDGE_CURVE;
+                valid = FALSE;
+                edge = edge->next(vertex);
+                continue;
+            }
 
             if (edge->start() == vertex) {
                 if (start_dist > SPAresabs) {
@@ -270,6 +269,7 @@ logical check_vertex_edge_curves(
                     id->set_insanity_type(ERROR_TYPE);
                     id->set_description("Vertex not at curve start parameter position.");
                     ilist->add(id);
+                    if (status) *status |= VTX_CHECK_BAD_EDGE_CURVE;
                     valid = FALSE;
                 }
             } else if (edge->end() == vertex) {
@@ -278,6 +278,7 @@ logical check_vertex_edge_curves(
                     id->set_insanity_type(ERROR_TYPE);
                     id->set_description("Vertex not at curve end parameter position.");
                     ilist->add(id);
+                    if (status) *status |= VTX_CHECK_BAD_EDGE_CURVE;
                     valid = FALSE;
                 }
             }
@@ -291,7 +292,8 @@ logical check_vertex_edge_curves(
 
 logical check_vertex_coincident(
     VERTEX        *vertex,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status
 ) {
     POINT *pt = vertex->point();
     if (!pt) {
@@ -327,6 +329,7 @@ logical check_vertex_coincident(
                     id->set_insanity_type(WARNING);
                     id->set_description("Coincident vertices detected at edge endpoint.");
                     ilist->add(id);
+                    if (status) *status |= VTX_CHECK_COINCIDENT_VERTICES;
                     valid = FALSE;
                 }
             }
@@ -340,7 +343,8 @@ logical check_vertex_coincident(
 
 logical check_vertex_edge_sense(
     VERTEX        *vertex,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status
 ) {
     logical valid = TRUE;
     EDGE *edge = vertex->edge();
@@ -362,6 +366,7 @@ logical check_vertex_edge_sense(
                         "Coedge and partner have same sense at vertex."
                     );
                     ilist->add(id);
+                    if (status) *status |= VTX_CHECK_EDGE_SENSE_MISMATCH;
                     valid = FALSE;
                 }
             }
@@ -377,7 +382,8 @@ logical check_vertex_edge_sense(
 
 logical check_vertex_manifold(
     VERTEX        *vertex,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status
 ) {
     int face_count = 0;
     EDGE *edge = vertex->edge();
@@ -408,6 +414,7 @@ logical check_vertex_manifold(
         id->set_insanity_type(WARNING);
         id->set_description("Vertex may be non-manifold (odd number of faces).");
         ilist->add(id);
+        if (status) *status |= VTX_CHECK_NON_MANIFOLD;
         return FALSE;
     }
 
@@ -416,7 +423,8 @@ logical check_vertex_manifold(
 
 logical check_vertex_bounding_box(
     VERTEX        *vertex,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status
 ) {
     if (!vertex) {
         return FALSE;
@@ -434,6 +442,7 @@ logical check_vertex_bounding_box(
         id->set_insanity_type(ERROR_TYPE);
         id->set_description("Vertex position contains NaN in bounding box.");
         ilist->add(id);
+        if (status) *status |= VTX_CHECK_BAD_BOUNDING_BOX;
         return FALSE;
     }
 
@@ -442,6 +451,7 @@ logical check_vertex_bounding_box(
         id->set_insanity_type(ERROR_TYPE);
         id->set_description("Vertex position contains Inf in bounding box.");
         ilist->add(id);
+        if (status) *status |= VTX_CHECK_BAD_BOUNDING_BOX;
         return FALSE;
     }
 
@@ -450,7 +460,8 @@ logical check_vertex_bounding_box(
 
 logical check_vertex_normal_consistency(
     VERTEX        *vertex,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status
 ) {
     if (!vertex) {
         return FALSE;
@@ -524,6 +535,7 @@ logical check_vertex_normal_consistency(
                                             "Vertex normal inconsistency detected."
                                         );
                                         ilist->add(id);
+                                        if (status) *status |= VTX_CHECK_BAD_NORMAL_CONSISTENCY;
                                         valid = FALSE;
                                     }
                                 }
@@ -545,7 +557,8 @@ logical check_vertex_normal_consistency(
 
 logical check_vertex_tolerance(
     VERTEX        *vertex,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status
 ) {
     if (!vertex) {
         return FALSE;
@@ -560,6 +573,7 @@ logical check_vertex_tolerance(
         id->set_insanity_type(ERROR_TYPE);
         id->set_description("Vertex tolerance is negative.");
         ilist->add(id);
+        if (status) *status |= VTX_CHECK_BAD_TOLERANCE;
         valid = FALSE;
     }
 
@@ -568,6 +582,7 @@ logical check_vertex_tolerance(
         id->set_insanity_type(WARNING);
         id->set_description("Vertex tolerance is unusually large.");
         ilist->add(id);
+        if (status) *status |= VTX_CHECK_BAD_TOLERANCE;
     }
 
     if (std::isnan(tolerance) || std::isinf(tolerance)) {
@@ -575,6 +590,7 @@ logical check_vertex_tolerance(
         id->set_insanity_type(ERROR_TYPE);
         id->set_description("Vertex tolerance is NaN or Inf.");
         ilist->add(id);
+        if (status) *status |= VTX_CHECK_BAD_TOLERANCE;
         valid = FALSE;
     }
 
@@ -583,7 +599,8 @@ logical check_vertex_tolerance(
 
 logical check_vertex_sharp_angle(
     VERTEX        *vertex,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status
 ) {
     if (!vertex) {
         return FALSE;
@@ -657,6 +674,7 @@ logical check_vertex_sharp_angle(
                             "Sharp angle detected between edges at vertex."
                         );
                         ilist->add(id);
+                        if (status) *status |= VTX_CHECK_SHARP_ANGLE;
                         valid = FALSE;
                     }
                 }
@@ -681,95 +699,50 @@ int api_check_vertex(
 
     insanity_list ilist;
     int count = 0;
+    int status = VTX_CHECK_OK;
 
-    if (check_vertex_point_valid(vertex, &ilist) == FALSE) {
+    if (check_vertex_point_valid(vertex, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_vertex_edges_valid(vertex, &ilist) == FALSE) {
+    if (check_vertex_edges_valid(vertex, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_vertex_edge_curves(vertex, &ilist) == FALSE) {
+    if (check_vertex_edge_curves(vertex, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_vertex_edge_sense(vertex, &ilist) == FALSE) {
+    if (check_vertex_edge_sense(vertex, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_vertex_coincident(vertex, &ilist) == FALSE) {
+    if (check_vertex_coincident(vertex, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_vertex_manifold(vertex, &ilist) == FALSE) {
+    if (check_vertex_manifold(vertex, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_vertex_bounding_box(vertex, &ilist) == FALSE) {
+    if (check_vertex_bounding_box(vertex, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_vertex_normal_consistency(vertex, &ilist) == FALSE) {
+    if (check_vertex_normal_consistency(vertex, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_vertex_tolerance(vertex, &ilist) == FALSE) {
+    if (check_vertex_tolerance(vertex, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_vertex_sharp_angle(vertex, &ilist) == FALSE) {
+    if (check_vertex_sharp_angle(vertex, &ilist, &status) == FALSE) {
         count++;
     }
 
     if (insanity_count) {
         *insanity_count = count;
-    }
-
-    int status = VTX_CHECK_OK;
-    insanity_data *entry = ilist.first();
-    while (entry) {
-        const char *desc = entry->get_description();
-        if (desc) {
-            if (strstr(desc, "null") || strstr(desc, "Null")) {
-                status |= VTX_CHECK_NULL_POINT;
-            }
-            if (strstr(desc, "no incident edges")) {
-                status |= VTX_CHECK_NO_EDGES;
-            }
-            if (strstr(desc, "degenerate")) {
-                status |= VTX_CHECK_DEGENERATE_EDGE;
-            }
-            if (strstr(desc, "curve")) {
-                status |= VTX_CHECK_BAD_EDGE_CURVE;
-            }
-            if (strstr(desc, "sense")) {
-                status |= VTX_CHECK_EDGE_SENSE_MISMATCH;
-            }
-            if (strstr(desc, "non-manifold")) {
-                status |= VTX_CHECK_NON_MANIFOLD;
-            }
-            if (strstr(desc, "Coincident")) {
-                status |= VTX_CHECK_COINCIDENT_VERTICES;
-            }
-            if (strstr(desc, "not at curve")) {
-                status |= VTX_CHECK_POINT_NOT_ON_CURVE;
-            }
-            if (strstr(desc, "bounding box")) {
-                status |= VTX_CHECK_BAD_BOUNDING_BOX;
-            }
-            if (strstr(desc, "normal")) {
-                status |= VTX_CHECK_BAD_NORMAL_CONSISTENCY;
-            }
-            if (strstr(desc, "tolerance")) {
-                status |= VTX_CHECK_BAD_TOLERANCE;
-            }
-            if (strstr(desc, "angle") || strstr(desc, "sharp")) {
-                status |= VTX_CHECK_SHARP_ANGLE;
-            }
-        }
-
-        entry = entry->next();
     }
 
     return status;

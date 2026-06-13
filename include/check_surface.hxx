@@ -37,6 +37,8 @@ public:
 
     int eval_failure_count() const;
     int singularity_count() const;
+    void note_eval_failure();
+    void note_singularity();
 
     void add_insanity(insanity_data *data);
     insanity_list *get_insanity_list();
@@ -56,72 +58,86 @@ outcome api_check_surface_ok(
 
 logical check_surface_null(
     SURFACE       *surface,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_surface_evaluation(
     SURFACE       *surface,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_surface_parameter_range(
     SURFACE       *surface,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_surface_continuity(
     SURFACE       *surface,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_surface_singularity(
     SURFACE       *surface,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_surface_closure(
     SURFACE       *surface,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_surface_fit_tolerance(
     SURFACE       *surface,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_bspline_surface(
     SURFACE       *surface,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_surface_self_intersection(
     SURFACE       *surface,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_surface_normal_consistency(
     SURFACE       *surface,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_surface_g2_continuity(
     SURFACE       *surface,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_surface_uv_coordinates(
     SURFACE       *surface,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_surface_area_degenerate(
     SURFACE       *surface,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_surface_periodicity(
     SURFACE       *surface,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 int check_surface_ok(

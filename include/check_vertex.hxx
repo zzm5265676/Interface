@@ -34,6 +34,9 @@ public:
     int edge_count() const;
     int bad_edge_count() const;
     int non_manifold_count() const;
+    void note_edge();
+    void note_bad_edge();
+    void note_non_manifold();
 
     void add_insanity(insanity_data *data);
     insanity_list *get_insanity_list();
@@ -54,52 +57,62 @@ outcome api_check_vertex_errors(
 
 logical check_vertex_point_valid(
     VERTEX        *vertex,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_vertex_edges_valid(
     VERTEX        *vertex,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_vertex_edge_curves(
     VERTEX        *vertex,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_vertex_coincident(
     VERTEX        *vertex,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_vertex_edge_sense(
     VERTEX        *vertex,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_vertex_manifold(
     VERTEX        *vertex,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_vertex_bounding_box(
     VERTEX        *vertex,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_vertex_normal_consistency(
     VERTEX        *vertex,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_vertex_tolerance(
     VERTEX        *vertex,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_vertex_sharp_angle(
     VERTEX        *vertex,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 int api_check_vertex(

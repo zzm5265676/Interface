@@ -37,6 +37,14 @@ int bs3_curve_check_result::degenerate_count() const {
     return _degenerate_count;
 }
 
+void bs3_curve_check_result::note_eval_failure() {
+    ++_eval_failure_count;
+}
+
+void bs3_curve_check_result::note_degenerate() {
+    ++_degenerate_count;
+}
+
 void bs3_curve_check_result::add_insanity(insanity_data *data) {
     if (data) {
         _insanities.add(data);
@@ -58,106 +66,46 @@ outcome api_bs3_curve_check(
         return outcome(API_NULL_ARGUMENT, FAIL, 0);
     }
 
-    check_bs3_curve_null(curve, result.get_insanity_list());
-
-    check_bs3_curve_order(curve, result.get_insanity_list());
-
-    check_bs3_curve_control_points(curve, result.get_insanity_list());
-
-    check_bs3_curve_knot_vector(curve, result.get_insanity_list());
-
-    check_bs3_curve_evaluation(curve, result.get_insanity_list());
-
-    check_bs3_curve_parameter_range(curve, result.get_insanity_list());
-
-    check_bs3_curve_closure(curve, result.get_insanity_list());
-
-    check_bs3_curve_fit_tolerance(curve, result.get_insanity_list());
-
-    check_bs3_curve_degeneracy(curve, result.get_insanity_list());
-
-    check_bs3_curve_derivatives(curve, result.get_insanity_list());
-
-    check_bs3_curve_knot_multiplicity(curve, result.get_insanity_list());
-
-    check_bs3_curve_convex_hull(curve, result.get_insanity_list());
-
-    check_bs3_curve_vd_property(curve, result.get_insanity_list());
-
-    check_bs3_curve_bounding_box(curve, result.get_insanity_list());
-
-    check_bs3_curve_arc_length(curve, result.get_insanity_list());
-
     int status = BS3_CURVE_CHECK_OK;
-    insanity_data *entry = result.get_insanity_list()->first();
-    while (entry) {
-        const char *desc = entry->get_description();
-        if (desc) {
-            if (strstr(desc, "null")) {
-                status |= BS3_CURVE_CHECK_NULL_CURVE;
-            }
-            if (strstr(desc, "order")) {
-                status |= BS3_CURVE_CHECK_BAD_ORDER;
-            }
-            if (strstr(desc, "knot")) {
-                status |= BS3_CURVE_CHECK_BAD_KNOT_VECTOR;
-            }
-            if (strstr(desc, "control point")) {
-                status |= BS3_CURVE_CHECK_BAD_CP_COUNT;
-            }
-            if (strstr(desc, "coincident")) {
-                status |= BS3_CURVE_CHECK_COINCIDENT_CPS;
-            }
-            if (strstr(desc, "evaluation") || strstr(desc, "threw")) {
-                status |= BS3_CURVE_CHECK_EVAL_FAILURE;
-            }
-            if (strstr(desc, "NaN") || strstr(desc, "Inf")) {
-                status |= BS3_CURVE_CHECK_NAN_COORDINATES;
-            }
-            if (strstr(desc, "parameter")) {
-                status |= BS3_CURVE_CHECK_BAD_PARAM_RANGE;
-            }
-            if (strstr(desc, "closure") || strstr(desc, "closed")) {
-                status |= BS3_CURVE_CHECK_BAD_CLOSURE;
-            }
-            if (strstr(desc, "tolerance")) {
-                status |= BS3_CURVE_CHECK_BAD_FIT_TOL;
-            }
-            if (strstr(desc, "degenerate")) {
-                status |= BS3_CURVE_CHECK_DEGENERATE;
-            }
-            if (strstr(desc, "multiplicity")) {
-                status |= BS3_CURVE_CHECK_BAD_KNOT_MULT;
-            }
-            if (strstr(desc, "convex hull")) {
-                status |= BS3_CURVE_CHECK_BAD_CONVEX_HULL;
-            }
-            if (strstr(desc, "variation diminishing")) {
-                status |= BS3_CURVE_CHECK_BAD_VD_PROPERTY;
-            }
-            if (strstr(desc, "bounding box")) {
-                status |= BS3_CURVE_CHECK_BAD_BOUNDING_BOX;
-            }
-            if (strstr(desc, "arc length")) {
-                status |= BS3_CURVE_CHECK_BAD_ARC_LENGTH;
-            }
-        }
-        entry = entry->next();
-    }
-    result.set_status(status);
 
+    check_bs3_curve_null(curve, result.get_insanity_list(), &status);
+    check_bs3_curve_order(curve, result.get_insanity_list(), &status);
+    check_bs3_curve_control_points(curve, result.get_insanity_list(), &status);
+    check_bs3_curve_knot_vector(curve, result.get_insanity_list(), &status);
+    check_bs3_curve_evaluation(curve, result.get_insanity_list(), &status);
+    check_bs3_curve_parameter_range(curve, result.get_insanity_list(), &status);
+    check_bs3_curve_closure(curve, result.get_insanity_list(), &status);
+    check_bs3_curve_fit_tolerance(curve, result.get_insanity_list(), &status);
+    check_bs3_curve_degeneracy(curve, result.get_insanity_list(), &status);
+    check_bs3_curve_derivatives(curve, result.get_insanity_list(), &status);
+    check_bs3_curve_knot_multiplicity(curve, result.get_insanity_list(), &status);
+    check_bs3_curve_convex_hull(curve, result.get_insanity_list(), &status);
+    check_bs3_curve_vd_property(curve, result.get_insanity_list(), &status);
+    check_bs3_curve_bounding_box(curve, result.get_insanity_list(), &status);
+    check_bs3_curve_arc_length(curve, result.get_insanity_list(), &status);
+
+    if (status & BS3_CURVE_CHECK_EVAL_FAILURE) {
+        result.note_eval_failure();
+    }
+    if (status & BS3_CURVE_CHECK_DEGENERATE) {
+        result.note_degenerate();
+    }
+
+    result.set_status(status);
     return res;
 }
 
 logical check_bs3_curve_null(
     BS3_CURVE       *curve,
-    insanity_list   *ilist
+    insanity_list   *ilist,
+    int             *status
 ) {
     if (!curve) {
         insanity_data *id = new insanity_data();
         id->set_insanity_type(ERROR_TYPE);
         id->set_description("BS3_CURVE pointer is null.");
         ilist->add(id);
+        if (status) *status |= BS3_CURVE_CHECK_NULL_CURVE;
         return FALSE;
     }
 
@@ -166,7 +114,8 @@ logical check_bs3_curve_null(
 
 logical check_bs3_curve_order(
     BS3_CURVE       *curve,
-    insanity_list   *ilist
+    insanity_list   *ilist,
+    int             *status
 ) {
     if (!curve) {
         return FALSE;
@@ -179,6 +128,7 @@ logical check_bs3_curve_order(
         id->set_insanity_type(ERROR_TYPE);
         id->set_description("BS3_CURVE order is less than 1.");
         ilist->add(id);
+        if (status) *status |= BS3_CURVE_CHECK_BAD_ORDER;
         return FALSE;
     }
 
@@ -187,6 +137,7 @@ logical check_bs3_curve_order(
         id->set_insanity_type(WARNING);
         id->set_description("BS3_CURVE order is unusually high.");
         ilist->add(id);
+        if (status) *status |= BS3_CURVE_CHECK_BAD_ORDER;
     }
 
     return TRUE;
@@ -194,7 +145,8 @@ logical check_bs3_curve_order(
 
 logical check_bs3_curve_control_points(
     BS3_CURVE       *curve,
-    insanity_list   *ilist
+    insanity_list   *ilist,
+    int             *status
 ) {
     if (!curve) {
         return FALSE;
@@ -209,6 +161,7 @@ logical check_bs3_curve_control_points(
         id->set_insanity_type(ERROR_TYPE);
         id->set_description("BS3_CURVE: control points < order.");
         ilist->add(id);
+        if (status) *status |= BS3_CURVE_CHECK_BAD_CP_COUNT;
         return FALSE;
     }
 
@@ -217,6 +170,7 @@ logical check_bs3_curve_control_points(
         id->set_insanity_type(WARNING);
         id->set_description("BS3_CURVE has only 1 control point.");
         ilist->add(id);
+        if (status) *status |= BS3_CURVE_CHECK_BAD_CP_COUNT;
         return FALSE;
     }
 
@@ -227,6 +181,7 @@ logical check_bs3_curve_control_points(
             id->set_insanity_type(ERROR_TYPE);
             id->set_description("BS3_CURVE control point has NaN coordinates.");
             ilist->add(id);
+            if (status) *status |= BS3_CURVE_CHECK_NAN_COORDINATES;
             valid = FALSE;
             break;
         }
@@ -235,6 +190,21 @@ logical check_bs3_curve_control_points(
             id->set_insanity_type(ERROR_TYPE);
             id->set_description("BS3_CURVE control point has Inf coordinates.");
             ilist->add(id);
+            if (status) *status |= BS3_CURVE_CHECK_NAN_COORDINATES;
+            valid = FALSE;
+            break;
+        }
+    }
+
+    for (int i = 1; i < num_cp; ++i) {
+        SPAposition prev = curve->control_point(i - 1);
+        SPAposition curr = curve->control_point(i);
+        if ((curr - prev).length() < SPAresabs) {
+            insanity_data *id = new insanity_data();
+            id->set_insanity_type(WARNING);
+            id->set_description("BS3_CURVE has coincident adjacent control points.");
+            ilist->add(id);
+            if (status) *status |= BS3_CURVE_CHECK_COINCIDENT_CPS;
             valid = FALSE;
             break;
         }
@@ -245,7 +215,8 @@ logical check_bs3_curve_control_points(
 
 logical check_bs3_curve_knot_vector(
     BS3_CURVE       *curve,
-    insanity_list   *ilist
+    insanity_list   *ilist,
+    int             *status
 ) {
     if (!curve) {
         return FALSE;
@@ -261,6 +232,7 @@ logical check_bs3_curve_knot_vector(
         id->set_insanity_type(ERROR_TYPE);
         id->set_description("BS3_CURVE has null knot vector.");
         ilist->add(id);
+        if (status) *status |= BS3_CURVE_CHECK_BAD_KNOT_VECTOR;
         return FALSE;
     }
 
@@ -272,6 +244,7 @@ logical check_bs3_curve_knot_vector(
             id->set_insanity_type(ERROR_TYPE);
             id->set_description("BS3_CURVE knot vector is not non-decreasing.");
             ilist->add(id);
+            if (status) *status |= BS3_CURVE_CHECK_BAD_KNOT_VECTOR;
             valid = FALSE;
             break;
         }
@@ -286,6 +259,7 @@ logical check_bs3_curve_knot_vector(
                 id->set_insanity_type(ERROR_TYPE);
                 id->set_description("BS3_CURVE knot contains NaN/Inf.");
                 ilist->add(id);
+                if (status) *status |= BS3_CURVE_CHECK_NAN_COORDINATES;
                 valid = FALSE;
                 break;
             }
@@ -297,7 +271,8 @@ logical check_bs3_curve_knot_vector(
 
 logical check_bs3_curve_evaluation(
     BS3_CURVE       *curve,
-    insanity_list   *ilist
+    insanity_list   *ilist,
+    int             *status
 ) {
     if (!curve) {
         return FALSE;
@@ -320,8 +295,8 @@ logical check_bs3_curve_evaluation(
                 id->set_insanity_type(ERROR_TYPE);
                 id->set_description("BS3_CURVE evaluation returned NaN.");
                 ilist->add(id);
-                valid = FALSE;
-                return valid;
+                if (status) *status |= BS3_CURVE_CHECK_EVAL_FAILURE;
+                return FALSE;
             }
 
             if (std::isinf(pos.x()) || std::isinf(pos.y()) ||
@@ -330,16 +305,16 @@ logical check_bs3_curve_evaluation(
                 id->set_insanity_type(ERROR_TYPE);
                 id->set_description("BS3_CURVE evaluation returned Inf.");
                 ilist->add(id);
-                valid = FALSE;
-                return valid;
+                if (status) *status |= BS3_CURVE_CHECK_EVAL_FAILURE;
+                return FALSE;
             }
         } catch (...) {
             insanity_data *id = new insanity_data();
             id->set_insanity_type(ERROR_TYPE);
             id->set_description("BS3_CURVE evaluation threw exception.");
             ilist->add(id);
-            valid = FALSE;
-            return valid;
+            if (status) *status |= BS3_CURVE_CHECK_EVAL_FAILURE;
+            return FALSE;
         }
     }
 
@@ -348,7 +323,8 @@ logical check_bs3_curve_evaluation(
 
 logical check_bs3_curve_parameter_range(
     BS3_CURVE       *curve,
-    insanity_list   *ilist
+    insanity_list   *ilist,
+    int             *status
 ) {
     if (!curve) {
         return FALSE;
@@ -361,6 +337,7 @@ logical check_bs3_curve_parameter_range(
         id->set_insanity_type(ERROR_TYPE);
         id->set_description("BS3_CURVE parameter range is null.");
         ilist->add(id);
+        if (status) *status |= BS3_CURVE_CHECK_BAD_PARAM_RANGE;
         return FALSE;
     }
 
@@ -369,6 +346,7 @@ logical check_bs3_curve_parameter_range(
         id->set_insanity_type(WARNING);
         id->set_description("BS3_CURVE parameter range is degenerate.");
         ilist->add(id);
+        if (status) *status |= BS3_CURVE_CHECK_BAD_PARAM_RANGE;
     }
 
     if (std::isnan(range.low()) || std::isnan(range.high())) {
@@ -376,6 +354,7 @@ logical check_bs3_curve_parameter_range(
         id->set_insanity_type(ERROR_TYPE);
         id->set_description("BS3_CURVE parameter range contains NaN.");
         ilist->add(id);
+        if (status) *status |= BS3_CURVE_CHECK_NAN_COORDINATES;
         return FALSE;
     }
 
@@ -384,6 +363,7 @@ logical check_bs3_curve_parameter_range(
         id->set_insanity_type(ERROR_TYPE);
         id->set_description("BS3_CURVE parameter range contains Inf.");
         ilist->add(id);
+        if (status) *status |= BS3_CURVE_CHECK_NAN_COORDINATES;
         return FALSE;
     }
 
@@ -392,7 +372,8 @@ logical check_bs3_curve_parameter_range(
 
 logical check_bs3_curve_closure(
     BS3_CURVE       *curve,
-    insanity_list   *ilist
+    insanity_list   *ilist,
+    int             *status
 ) {
     if (!curve) {
         return FALSE;
@@ -415,10 +396,10 @@ logical check_bs3_curve_closure(
             "BS3_CURVE marked closed but start/end positions differ."
         );
         ilist->add(id);
+        if (status) *status |= BS3_CURVE_CHECK_BAD_CLOSURE;
         valid = FALSE;
     }
 
-    double mid_t = (range.low() + range.high()) / 2.0;
     SPAvector start_tan = curve->eval_deriv(range.low());
     SPAvector end_tan = curve->eval_deriv(range.high());
 
@@ -432,6 +413,7 @@ logical check_bs3_curve_closure(
                 "BS3_CURVE closed but tangents mismatch at seam."
             );
             ilist->add(id);
+            if (status) *status |= BS3_CURVE_CHECK_BAD_CLOSURE;
             valid = FALSE;
         }
     }
@@ -441,7 +423,8 @@ logical check_bs3_curve_closure(
 
 logical check_bs3_curve_fit_tolerance(
     BS3_CURVE       *curve,
-    insanity_list   *ilist
+    insanity_list   *ilist,
+    int             *status
 ) {
     if (!curve) {
         return FALSE;
@@ -450,11 +433,21 @@ logical check_bs3_curve_fit_tolerance(
     logical valid = TRUE;
     double fit_tol = curve->fit_tolerance();
 
+    if (std::isnan(fit_tol) || std::isinf(fit_tol)) {
+        insanity_data *id = new insanity_data();
+        id->set_insanity_type(ERROR_TYPE);
+        id->set_description("BS3_CURVE fit tolerance is NaN or Inf.");
+        ilist->add(id);
+        if (status) *status |= BS3_CURVE_CHECK_BAD_FIT_TOL;
+        return FALSE;
+    }
+
     if (fit_tol < 0) {
         insanity_data *id = new insanity_data();
         id->set_insanity_type(ERROR_TYPE);
         id->set_description("BS3_CURVE fit tolerance is negative.");
         ilist->add(id);
+        if (status) *status |= BS3_CURVE_CHECK_BAD_FIT_TOL;
         valid = FALSE;
     }
 
@@ -463,6 +456,7 @@ logical check_bs3_curve_fit_tolerance(
         id->set_insanity_type(WARNING);
         id->set_description("BS3_CURVE fit tolerance is unusually large.");
         ilist->add(id);
+        if (status) *status |= BS3_CURVE_CHECK_BAD_FIT_TOL;
     }
 
     return valid;
@@ -470,7 +464,8 @@ logical check_bs3_curve_fit_tolerance(
 
 logical check_bs3_curve_degeneracy(
     BS3_CURVE       *curve,
-    insanity_list   *ilist
+    insanity_list   *ilist,
+    int             *status
 ) {
     if (!curve) {
         return FALSE;
@@ -501,6 +496,7 @@ logical check_bs3_curve_degeneracy(
             "BS3_CURVE: all control points are coincident (degenerate)."
         );
         ilist->add(id);
+        if (status) *status |= BS3_CURVE_CHECK_DEGENERATE;
         valid = FALSE;
     }
 
@@ -529,6 +525,7 @@ logical check_bs3_curve_degeneracy(
             "BS3_CURVE: too many consecutive coincident control points."
         );
         ilist->add(id);
+        if (status) *status |= BS3_CURVE_CHECK_DEGENERATE;
         valid = FALSE;
     }
 
@@ -537,7 +534,8 @@ logical check_bs3_curve_degeneracy(
 
 logical check_bs3_curve_derivatives(
     BS3_CURVE       *curve,
-    insanity_list   *ilist
+    insanity_list   *ilist,
+    int             *status
 ) {
     if (!curve) {
         return FALSE;
@@ -562,8 +560,8 @@ logical check_bs3_curve_derivatives(
                     "BS3_CURVE first derivative evaluation returned NaN."
                 );
                 ilist->add(id);
-                valid = FALSE;
-                return valid;
+                if (status) *status |= BS3_CURVE_CHECK_EVAL_FAILURE;
+                return FALSE;
             }
 
             if (std::isinf(deriv.x()) || std::isinf(deriv.y()) ||
@@ -574,8 +572,8 @@ logical check_bs3_curve_derivatives(
                     "BS3_CURVE first derivative evaluation returned Inf."
                 );
                 ilist->add(id);
-                valid = FALSE;
-                return valid;
+                if (status) *status |= BS3_CURVE_CHECK_EVAL_FAILURE;
+                return FALSE;
             }
         } catch (...) {
             insanity_data *id = new insanity_data();
@@ -584,8 +582,8 @@ logical check_bs3_curve_derivatives(
                 "BS3_CURVE derivative evaluation threw exception."
             );
             ilist->add(id);
-            valid = FALSE;
-            return valid;
+            if (status) *status |= BS3_CURVE_CHECK_EVAL_FAILURE;
+            return FALSE;
         }
     }
 
@@ -601,6 +599,7 @@ logical check_bs3_curve_derivatives(
                 "BS3_CURVE: zero derivatives at both endpoints."
             );
             ilist->add(id);
+            if (status) *status |= BS3_CURVE_CHECK_EVAL_FAILURE;
             valid = FALSE;
         }
     }
@@ -610,7 +609,8 @@ logical check_bs3_curve_derivatives(
 
 logical check_bs3_curve_knot_multiplicity(
     BS3_CURVE       *curve,
-    insanity_list   *ilist
+    insanity_list   *ilist,
+    int             *status
 ) {
     if (!curve) {
         return FALSE;
@@ -637,6 +637,7 @@ logical check_bs3_curve_knot_multiplicity(
                     "BS3_CURVE knot multiplicity exceeds order."
                 );
                 ilist->add(id);
+                if (status) *status |= BS3_CURVE_CHECK_BAD_KNOT_MULT;
                 valid = FALSE;
                 break;
             }
@@ -650,7 +651,8 @@ logical check_bs3_curve_knot_multiplicity(
 
 logical check_bs3_curve_convex_hull(
     BS3_CURVE       *curve,
-    insanity_list   *ilist
+    insanity_list   *ilist,
+    int             *status
 ) {
     if (!curve) {
         return FALSE;
@@ -698,6 +700,7 @@ logical check_bs3_curve_convex_hull(
                     "BS3_CURVE point outside convex hull (min)."
                 );
                 ilist->add(id);
+                if (status) *status |= BS3_CURVE_CHECK_BAD_CONVEX_HULL;
                 valid = FALSE;
                 break;
             }
@@ -711,6 +714,7 @@ logical check_bs3_curve_convex_hull(
                     "BS3_CURVE point outside convex hull (max)."
                 );
                 ilist->add(id);
+                if (status) *status |= BS3_CURVE_CHECK_BAD_CONVEX_HULL;
                 valid = FALSE;
                 break;
             }
@@ -724,7 +728,8 @@ logical check_bs3_curve_convex_hull(
 
 logical check_bs3_curve_vd_property(
     BS3_CURVE       *curve,
-    insanity_list   *ilist
+    insanity_list   *ilist,
+    int             *status
 ) {
     if (!curve) {
         return FALSE;
@@ -766,6 +771,7 @@ logical check_bs3_curve_vd_property(
                         "BS3_CURVE may violate variation diminishing property."
                     );
                     ilist->add(id);
+                    if (status) *status |= BS3_CURVE_CHECK_BAD_VD_PROPERTY;
                     valid = FALSE;
                     break;
                 }
@@ -782,7 +788,8 @@ logical check_bs3_curve_vd_property(
 
 logical check_bs3_curve_bounding_box(
     BS3_CURVE       *curve,
-    insanity_list   *ilist
+    insanity_list   *ilist,
+    int             *status
 ) {
     if (!curve) {
         return FALSE;
@@ -801,6 +808,7 @@ logical check_bs3_curve_bounding_box(
                 "BS3_CURVE control point has NaN in bounding box."
             );
             ilist->add(id);
+            if (status) *status |= BS3_CURVE_CHECK_BAD_BOUNDING_BOX;
             valid = FALSE;
             break;
         }
@@ -812,6 +820,7 @@ logical check_bs3_curve_bounding_box(
                 "BS3_CURVE control point has Inf in bounding box."
             );
             ilist->add(id);
+            if (status) *status |= BS3_CURVE_CHECK_BAD_BOUNDING_BOX;
             valid = FALSE;
             break;
         }
@@ -822,7 +831,8 @@ logical check_bs3_curve_bounding_box(
 
 logical check_bs3_curve_arc_length(
     BS3_CURVE       *curve,
-    insanity_list   *ilist
+    insanity_list   *ilist,
+    int             *status
 ) {
     if (!curve) {
         return FALSE;
@@ -857,6 +867,7 @@ logical check_bs3_curve_arc_length(
             "BS3_CURVE arc length is near zero (degenerate)."
         );
         ilist->add(id);
+        if (status) *status |= BS3_CURVE_CHECK_BAD_ARC_LENGTH;
         valid = FALSE;
     }
 
@@ -867,6 +878,7 @@ logical check_bs3_curve_arc_length(
             "BS3_CURVE arc length is NaN or Inf."
         );
         ilist->add(id);
+        if (status) *status |= BS3_CURVE_CHECK_BAD_ARC_LENGTH;
         valid = FALSE;
     }
 
@@ -883,127 +895,70 @@ int bs3_curve_check(
 
     insanity_list ilist;
     int count = 0;
+    int status = BS3_CURVE_CHECK_OK;
 
-    if (check_bs3_curve_null(curve, &ilist) == FALSE) {
+    if (check_bs3_curve_null(curve, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_bs3_curve_order(curve, &ilist) == FALSE) {
+    if (check_bs3_curve_order(curve, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_bs3_curve_control_points(curve, &ilist) == FALSE) {
+    if (check_bs3_curve_control_points(curve, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_bs3_curve_knot_vector(curve, &ilist) == FALSE) {
+    if (check_bs3_curve_knot_vector(curve, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_bs3_curve_evaluation(curve, &ilist) == FALSE) {
+    if (check_bs3_curve_evaluation(curve, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_bs3_curve_parameter_range(curve, &ilist) == FALSE) {
+    if (check_bs3_curve_parameter_range(curve, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_bs3_curve_closure(curve, &ilist) == FALSE) {
+    if (check_bs3_curve_closure(curve, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_bs3_curve_fit_tolerance(curve, &ilist) == FALSE) {
+    if (check_bs3_curve_fit_tolerance(curve, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_bs3_curve_degeneracy(curve, &ilist) == FALSE) {
+    if (check_bs3_curve_degeneracy(curve, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_bs3_curve_derivatives(curve, &ilist) == FALSE) {
+    if (check_bs3_curve_derivatives(curve, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_bs3_curve_knot_multiplicity(curve, &ilist) == FALSE) {
+    if (check_bs3_curve_knot_multiplicity(curve, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_bs3_curve_convex_hull(curve, &ilist) == FALSE) {
+    if (check_bs3_curve_convex_hull(curve, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_bs3_curve_vd_property(curve, &ilist) == FALSE) {
+    if (check_bs3_curve_vd_property(curve, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_bs3_curve_bounding_box(curve, &ilist) == FALSE) {
+    if (check_bs3_curve_bounding_box(curve, &ilist, &status) == FALSE) {
         count++;
     }
 
-    if (check_bs3_curve_arc_length(curve, &ilist) == FALSE) {
+    if (check_bs3_curve_arc_length(curve, &ilist, &status) == FALSE) {
         count++;
     }
 
     if (insanity_count) {
         *insanity_count = count;
-    }
-
-    int status = BS3_CURVE_CHECK_OK;
-    insanity_data *entry = ilist.first();
-    while (entry) {
-        const char *desc = entry->get_description();
-        if (desc) {
-            if (strstr(desc, "null")) {
-                status |= BS3_CURVE_CHECK_NULL_CURVE;
-            }
-            if (strstr(desc, "order")) {
-                status |= BS3_CURVE_CHECK_BAD_ORDER;
-            }
-            if (strstr(desc, "knot")) {
-                status |= BS3_CURVE_CHECK_BAD_KNOT_VECTOR;
-            }
-            if (strstr(desc, "control point")) {
-                status |= BS3_CURVE_CHECK_BAD_CP_COUNT;
-            }
-            if (strstr(desc, "coincident")) {
-                status |= BS3_CURVE_CHECK_COINCIDENT_CPS;
-            }
-            if (strstr(desc, "evaluation") || strstr(desc, "threw")) {
-                status |= BS3_CURVE_CHECK_EVAL_FAILURE;
-            }
-            if (strstr(desc, "NaN") || strstr(desc, "Inf")) {
-                status |= BS3_CURVE_CHECK_NAN_COORDINATES;
-            }
-            if (strstr(desc, "parameter")) {
-                status |= BS3_CURVE_CHECK_BAD_PARAM_RANGE;
-            }
-            if (strstr(desc, "closure") || strstr(desc, "closed")) {
-                status |= BS3_CURVE_CHECK_BAD_CLOSURE;
-            }
-            if (strstr(desc, "tolerance")) {
-                status |= BS3_CURVE_CHECK_BAD_FIT_TOL;
-            }
-            if (strstr(desc, "degenerate")) {
-                status |= BS3_CURVE_CHECK_DEGENERATE;
-            }
-            if (strstr(desc, "multiplicity")) {
-                status |= BS3_CURVE_CHECK_BAD_KNOT_MULT;
-            }
-            if (strstr(desc, "convex hull")) {
-                status |= BS3_CURVE_CHECK_BAD_CONVEX_HULL;
-            }
-            if (strstr(desc, "variation diminishing")) {
-                status |= BS3_CURVE_CHECK_BAD_VD_PROPERTY;
-            }
-            if (strstr(desc, "bounding box")) {
-                status |= BS3_CURVE_CHECK_BAD_BOUNDING_BOX;
-            }
-            if (strstr(desc, "arc length")) {
-                status |= BS3_CURVE_CHECK_BAD_ARC_LENGTH;
-            }
-        }
-
-        entry = entry->next();
     }
 
     return status;

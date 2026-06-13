@@ -35,6 +35,7 @@ public:
     void set_status(int status);
 
     int eval_failure_count() const;
+    void note_eval_failure();
 
     void add_insanity(insanity_data *data);
     insanity_list *get_insanity_list();
@@ -53,72 +54,86 @@ outcome api_check_edge_errors(
 
 logical check_edge_null(
     EDGE          *edge,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_edge_curve(
     EDGE          *edge,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_edge_vertices(
     EDGE          *edge,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_edge_degenerate(
     EDGE          *edge,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_edge_parameter_range(
     EDGE          *edge,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_edge_vertex_on_curve(
     EDGE          *edge,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_edge_closure(
     EDGE          *edge,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_edge_coedge_sense(
     EDGE          *edge,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_edge_evaluation(
     EDGE          *edge,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_edge_fit_tolerance(
     EDGE          *edge,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_edge_length(
     EDGE          *edge,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_edge_g1_continuity(
     EDGE          *edge,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_edge_bounding_box(
     EDGE          *edge,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 logical check_edge_param_normalization(
     EDGE          *edge,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int           *status = NULL
 );
 
 int api_check_edge(

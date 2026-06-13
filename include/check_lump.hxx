@@ -36,6 +36,9 @@ public:
     int shell_count() const;
     int bad_face_count() const;
     int bad_edge_count() const;
+    void note_shell();
+    void note_bad_face();
+    void note_bad_edge();
 
     void add_insanity(insanity_data *data);
     insanity_list *get_insanity_list();
@@ -56,57 +59,68 @@ outcome api_check_lump(
 
 logical check_lump_shells_valid(
     LUMP   *lump,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int    *status = NULL
 );
 
 logical check_shell_faces_valid(
     SHELL  *shell,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int    *status = NULL
 );
 
 logical check_lump_containment(
     LUMP   *lump,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int    *status = NULL
 );
 
 logical check_edge_curves_valid(
     FACE   *face,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int    *status = NULL
 );
 
 logical check_coedge_sense(
     FACE   *face,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int    *status = NULL
 );
 
 logical check_wire_self_intersect(
     WIRE   *wire,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int    *status = NULL
 );
 
 logical check_lump_volume(
     LUMP   *lump,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int    *status = NULL
 );
 
 logical check_lump_bounding_box(
     LUMP   *lump,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int    *status = NULL
 );
 
 logical check_lump_shell_orientation(
     LUMP   *lump,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int    *status = NULL
 );
 
 logical check_lump_face_adjacency(
     LUMP   *lump,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int    *status = NULL
 );
 
 logical check_lump_edge_manifold(
     LUMP   *lump,
-    insanity_list *ilist
+    insanity_list *ilist,
+    int    *status = NULL
 );
 
 int api_check_lump_status(

@@ -10,6 +10,13 @@
 - [TASK_SUMMARY.md](file://TASK_SUMMARY.md)
 </cite>
 
+## 更新摘要
+**所做更改**
+- 增强了状态跟踪和验证程序，新增详细的检查状态枚举和状态管理机制
+- 更新了 api_check_lump_status 函数的实现逻辑，改进了状态码聚合机制
+- 完善了错误处理和状态管理的详细说明
+- 新增了状态跟踪机制的技术细节和使用指导
+
 ## 目录
 1. [简介](#简介)
 2. [项目结构](#项目结构)
@@ -24,6 +31,8 @@
 ## 简介
 
 LUMP 检查接口是 ACIS 几何建模库中的一个重要功能模块，专门用于验证和检查几何体的完整性。该接口提供了两种主要的检查模式：完整检查模式（api_check_lump）和快速状态检查模式（api_check_lump_status），能够检测几何体中的各种问题，包括壳体完整性、面邻接关系、边的拓扑结构等。
+
+**更新** 新增了增强的状态跟踪和验证程序，提供了更精细的检查状态管理和状态码聚合机制。
 
 ## 项目结构
 
@@ -61,12 +70,12 @@ J --> K
 ```
 
 **图表来源**
-- [check_lump.hxx:1-117](file://include/check_lump.hxx#L1-L117)
-- [check_lump.cxx:1-766](file://src/check_lump.cxx#L1-L766)
+- [check_lump.hxx:1-118](file://include/check_lump.hxx#L1-L118)
+- [check_lump.cxx:1-821](file://src/check_lump.cxx#L1-L821)
 
 **章节来源**
-- [check_lump.hxx:1-117](file://include/check_lump.hxx#L1-L117)
-- [check_lump.cxx:1-766](file://src/check_lump.cxx#L1-L766)
+- [check_lump.hxx:1-118](file://include/check_lump.hxx#L1-L118)
+- [check_lump.cxx:1-821](file://src/check_lump.cxx#L1-L821)
 
 ## 核心组件
 
@@ -106,6 +115,7 @@ class lump_check_result {
 +~lump_check_result()
 +get_status() int
 +is_ok() bool
++set_status(int status) void
 +shell_count() int
 +bad_face_count() int
 +bad_edge_count() int
@@ -130,11 +140,11 @@ insanity_list --> insanity_data : "包含"
 ```
 
 **图表来源**
-- [check_lump.hxx:27-48](file://include/check_lump.hxx#L27-L48)
+- [check_lump.hxx:27-49](file://include/check_lump.hxx#L27-L49)
 
 **章节来源**
 - [check_lump.hxx:9-25](file://include/check_lump.hxx#L9-L25)
-- [check_lump.hxx:27-48](file://include/check_lump.hxx#L27-L48)
+- [check_lump.hxx:27-49](file://include/check_lump.hxx#L27-L49)
 
 ## 架构概览
 
@@ -198,8 +208,8 @@ M --> Q
 ```
 
 **图表来源**
-- [check_lump.cxx:58-106](file://src/check_lump.cxx#L58-L106)
-- [check_lump.cxx:667-765](file://src/check_lump.cxx#L667-L765)
+- [check_lump.cxx:62-143](file://src/check_lump.cxx#L62-L143)
+- [check_lump.cxx:710-820](file://src/check_lump.cxx#L710-L820)
 
 ## 详细组件分析
 
@@ -233,8 +243,8 @@ outcome api_check_lump(
 - 提供详细的诊断信息
 
 **章节来源**
-- [check_lump.hxx:50-54](file://include/check_lump.hxx#L50-L54)
-- [check_lump.cxx:58-106](file://src/check_lump.cxx#L58-L106)
+- [check_lump.hxx:51-55](file://include/check_lump.hxx#L51-L55)
+- [check_lump.cxx:62-143](file://src/check_lump.cxx#L62-L143)
 
 #### api_check_lump_status 快速状态检查接口
 
@@ -267,9 +277,11 @@ int api_check_lump_status(
 - 快速过滤有问题的几何体
 - 性能敏感的应用场景
 
+**更新** 增强了状态跟踪机制，通过字符串匹配方式精确识别各类错误并设置对应的状态标志。
+
 **章节来源**
-- [check_lump.hxx:111-114](file://include/check_lump.hxx#L111-L114)
-- [check_lump.cxx:667-765](file://src/check_lump.cxx#L667-L765)
+- [check_lump.hxx:112-115](file://include/check_lump.hxx#L112-L115)
+- [check_lump.cxx:710-820](file://src/check_lump.cxx#L710-L820)
 
 ### 检查算法详细分析
 
@@ -300,7 +312,7 @@ ReturnValid --> End
 ```
 
 **图表来源**
-- [check_lump.cxx:108-136](file://src/check_lump.cxx#L108-L136)
+- [check_lump.cxx:145-173](file://src/check_lump.cxx#L145-L173)
 
 #### 包含关系检查 (check_lump_containment)
 
@@ -332,10 +344,10 @@ Loop1
 ```
 
 **图表来源**
-- [check_lump.cxx:173-238](file://src/check_lump.cxx#L173-L238)
+- [check_lump.cxx:210-275](file://src/check_lump.cxx#L210-L275)
 
 **章节来源**
-- [check_lump.cxx:108-238](file://src/check_lump.cxx#L108-L238)
+- [check_lump.cxx:145-275](file://src/check_lump.cxx#L145-L275)
 
 ### 错误处理机制
 
@@ -347,9 +359,12 @@ LUMP 检查接口采用了多层次的错误处理策略：
 4. **详细记录**: 使用 `insanity_list` 和 `insanity_data` 记录详细的错误信息
 5. **状态聚合**: 将多个检查结果聚合到最终的状态码中
 
+**更新** 新增了基于字符串匹配的状态跟踪机制，通过分析错误描述文本自动设置对应的状态标志，实现了更精确的状态管理。
+
 **章节来源**
-- [check_lump.cxx:65-67](file://src/check_lump.cxx#L65-L67)
-- [check_lump.cxx:114-119](file://src/check_lump.cxx#L114-L119)
+- [check_lump.cxx:67-71](file://src/check_lump.cxx#L67-L71)
+- [check_lump.cxx:152-156](file://src/check_lump.cxx#L152-L156)
+- [check_lump.cxx:774-817](file://src/check_lump.cxx#L774-L817)
 
 ## 依赖分析
 
@@ -455,12 +470,17 @@ B --> N
 - 分批处理大型几何体
 - 优化几何体结构
 
+**更新** 新增了状态跟踪机制的故障排除指导，帮助开发者更好地理解和调试状态码生成过程。
+
 **章节来源**
-- [check_lump.cxx:65-67](file://src/check_lump.cxx#L65-L67)
-- [check_lump.cxx:671-673](file://src/check_lump.cxx#L671-L673)
+- [check_lump.cxx:67-71](file://src/check_lump.cxx#L67-L71)
+- [check_lump.cxx:714-716](file://src/check_lump.cxx#L714-L716)
+- [check_lump.cxx:774-817](file://src/check_lump.cxx#L774-L817)
 
 ## 结论
 
-LUMP 检查接口提供了完整的几何体质量保证机制，通过两种不同的检查模式满足了不同场景的需求。完整检查模式适用于需要详细诊断信息的场景，而快速检查模式则适合性能敏感的应用。该接口的设计充分考虑了 ACIS 几何建模库的特点，提供了可靠的错误检测和处理能力。
+LUMP 检查接口提供了完整的几何体质量保证机制，通过两种不同的检查模式满足了不同场景的需求。完整检查模式适用于需要详细诊断信息的场景，而快速检查模式则适合性能敏感的应用。
+
+**更新** 本次更新增强了状态跟踪和验证程序，新增了详细的检查状态枚举和状态管理机制，提供了更精确的状态码聚合和错误识别能力。新的状态跟踪机制通过字符串匹配方式自动识别各类错误并设置对应的状态标志，实现了更可靠的状态管理。
 
 通过合理选择检查模式和优化使用策略，开发者可以有效地利用 LUMP 检查接口来提高几何建模的质量和可靠性。

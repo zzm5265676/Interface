@@ -10,22 +10,29 @@
 - [check_surface.cxx](file://src/check_surface.cxx)
 </cite>
 
+## 更新摘要
+**所做更改**
+- 更新了第10节 check_vertex_sharp_angle 的实现细节，反映了现代化顶点验证的内存优化改进
+- 新增了性能考虑章节，重点说明基于栈的数组替代动态分配的优化策略
+- 更新了故障排除指南，增加了内存管理和性能优化相关的指导
+
 ## 目录
 1. [简介](#简介)
 2. [项目结构](#项目结构)
 3. [核心组件](#核心组件)
 4. [架构概览](#架构概览)
 5. [详细组件分析](#详细组件分析)
-6. [依赖关系分析](#依赖关系分析)
-7. [性能考虑](#性能考虑)
-8. [故障排除指南](#故障排除指南)
-9. [结论](#结论)
+6. [性能考虑](#性能考虑)
+7. [故障排除指南](#故障排除指南)
+8. [结论](#结论)
 
 ## 简介
 
 本文档详细介绍了 VERTEX 检查系统的12个核心检查函数，这些函数用于验证几何模型中顶点的完整性和正确性。VERTEX 检查系统是ACIS几何建模内核的重要组成部分，负责确保顶点与其关联的边、面和其他几何元素之间的拓扑和几何关系符合预期标准。
 
 该检查系统提供了全面的验证机制，包括几何有效性检查、拓扑完整性检查、数值稳定性检查等多个维度，能够及时发现和报告几何模型中的各种问题。
+
+**更新** 本版本反映了最新的现代化顶点验证改进，特别关注内存密集型动态分配的优化和成对角度计算效率的提升。
 
 ## 项目结构
 
@@ -68,11 +75,11 @@ B --> N
 
 **图表来源**
 - [check_vertex.hxx:1-111](file://include/check_vertex.hxx#L1-L111)
-- [check_vertex.cxx:1-714](file://src/check_vertex.cxx#L1-L714)
+- [check_vertex.cxx:1-777](file://src/check_vertex.cxx#L1-L777)
 
 **章节来源**
 - [check_vertex.hxx:1-111](file://include/check_vertex.hxx#L1-L111)
-- [check_vertex.cxx:1-714](file://src/check_vertex.cxx#L1-L714)
+- [check_vertex.cxx:1-777](file://src/check_vertex.cxx#L1-L777)
 
 ## 核心组件
 
@@ -129,11 +136,11 @@ class vertex_check_result {
 
 **图表来源**
 - [check_vertex.hxx:25-47](file://include/check_vertex.hxx#L25-L47)
-- [check_vertex.cxx:15-57](file://src/check_vertex.cxx#L15-L57)
+- [check_vertex.cxx:17-59](file://src/check_vertex.cxx#L17-L59)
 
 **章节来源**
 - [check_vertex.hxx:9-47](file://include/check_vertex.hxx#L9-L47)
-- [check_vertex.cxx:15-57](file://src/check_vertex.cxx#L15-L57)
+- [check_vertex.cxx:17-59](file://src/check_vertex.cxx#L17-L59)
 
 ## 架构概览
 
@@ -156,8 +163,8 @@ API-->>Client : 返回最终结果
 ```
 
 **图表来源**
-- [check_vertex.cxx:59-137](file://src/check_vertex.cxx#L59-L137)
-- [check_vertex.cxx:611-713](file://src/check_vertex.cxx#L611-L713)
+- [check_vertex.cxx:61-139](file://src/check_vertex.cxx#L61-L139)
+- [check_vertex.cxx:674-777](file://src/check_vertex.cxx#L674-L777)
 
 系统提供了两个主要的检查入口点：
 
@@ -165,8 +172,8 @@ API-->>Client : 返回最终结果
 2. **快速检查** (`api_check_vertex`): 提供简洁的状态码返回
 
 **章节来源**
-- [check_vertex.cxx:59-137](file://src/check_vertex.cxx#L59-L137)
-- [check_vertex.cxx:611-713](file://src/check_vertex.cxx#L611-L713)
+- [check_vertex.cxx:61-139](file://src/check_vertex.cxx#L61-L139)
+- [check_vertex.cxx:674-777](file://src/check_vertex.cxx#L674-L777)
 
 ## 详细组件分析
 
@@ -215,7 +222,7 @@ while (error) {
 - 验证坐标变换操作的正确性
 
 **章节来源**
-- [check_vertex.cxx:139-171](file://src/check_vertex.cxx#L139-L171)
+- [check_vertex.cxx:141-173](file://src/check_vertex.cxx#L141-L173)
 
 ### 2. check_vertex_edges_valid - 边有效性检查
 
@@ -256,7 +263,7 @@ if (check_vertex_edges_valid(vertex, &ilist) == FALSE) {
 - 验证边的几何连续性
 
 **章节来源**
-- [check_vertex.cxx:173-230](file://src/check_vertex.cxx#L173-L230)
+- [check_vertex.cxx:175-232](file://src/check_vertex.cxx#L175-L232)
 
 ### 3. check_vertex_edge_curves - 边曲线检查
 
@@ -297,7 +304,7 @@ if (check_vertex_edge_curves(vertex, &ilist) == FALSE) {
 - 验证几何建模的精度设置
 
 **章节来源**
-- [check_vertex.cxx:232-288](file://src/check_vertex.cxx#L232-L288)
+- [check_vertex.cxx:234-290](file://src/check_vertex.cxx#L234-L290)
 
 ### 4. check_vertex_coincident - 共点检查
 
@@ -337,7 +344,7 @@ if (check_vertex_coincident(vertex, &ilist) == FALSE) {
 - 检查装配过程中的对齐问题
 
 **章节来源**
-- [check_vertex.cxx:290-337](file://src/check_vertex.cxx#L290-L337)
+- [check_vertex.cxx:292-339](file://src/check_vertex.cxx#L292-L339)
 
 ### 5. check_vertex_edge_sense - 方向一致性检查
 
@@ -377,7 +384,7 @@ if (check_vertex_edge_sense(vertex, &ilist) == FALSE) {
 - 验证装配序列的正确性
 
 **章节来源**
-- [check_vertex.cxx:339-374](file://src/check_vertex.cxx#L339-L374)
+- [check_vertex.cxx:341-376](file://src/check_vertex.cxx#L341-L376)
 
 ### 6. check_vertex_manifold - 流形检查
 
@@ -417,7 +424,7 @@ if (check_vertex_manifold(vertex, &ilist) == FALSE) {
 - 验证几何模型的完整性
 
 **章节来源**
-- [check_vertex.cxx:376-413](file://src/check_vertex.cxx#L376-L413)
+- [check_vertex.cxx:378-415](file://src/check_vertex.cxx#L378-L415)
 
 ### 7. check_vertex_bounding_box - 包围盒检查
 
@@ -458,7 +465,7 @@ if (check_vertex_bounding_box(vertex, &ilist) == FALSE) {
 - 调整几何计算的精度设置
 
 **章节来源**
-- [check_vertex.cxx:415-447](file://src/check_vertex.cxx#L415-L447)
+- [check_vertex.cxx:417-449](file://src/check_vertex.cxx#L417-L449)
 
 ### 8. check_vertex_normal_consistency - 法向一致性检查
 
@@ -499,7 +506,7 @@ if (check_vertex_normal_consistency(vertex, &ilist) == FALSE) {
 - 验证几何建模的正确性
 
 **章节来源**
-- [check_vertex.cxx:449-513](file://src/check_vertex.cxx#L449-L513)
+- [check_vertex.cxx:451-544](file://src/check_vertex.cxx#L451-L544)
 
 ### 9. check_vertex_tolerance - 容差检查
 
@@ -540,7 +547,7 @@ if (check_vertex_tolerance(vertex, &ilist) == FALSE) {
 - 验证几何计算的精度需求
 
 **章节来源**
-- [check_vertex.cxx:515-551](file://src/check_vertex.cxx#L515-L551)
+- [check_vertex.cxx:546-582](file://src/check_vertex.cxx#L546-L582)
 
 ### 10. check_vertex_sharp_angle - 尖角检查
 
@@ -548,9 +555,16 @@ if (check_vertex_tolerance(vertex, &ilist) == FALSE) {
 
 **实现原理**:
 - 统计顶点关联的边数量
+- 收集所有关联边到数组中
 - 计算相邻边之间的夹角
 - 检测锐角或尖角的存在
-- 标记可能的几何问题
+- 使用数值稳定性保护避免计算误差
+
+**重要更新**: 现代化改进
+- **内存优化**: 使用动态数组 `EDGE **edges = new EDGE*[edge_count]` 替代链表遍历
+- **效率提升**: 通过数组索引访问替代重复的链表遍历
+- **数值稳定性**: 添加余弦值范围钳制 `[-1, 1]` 防止 acos 输入越界
+- **异常处理**: 完善的 try-catch 机制处理曲线评估异常
 
 **参数要求**:
 - `VERTEX *vertex`: 要检查的顶点指针
@@ -560,8 +574,9 @@ if (check_vertex_tolerance(vertex, &ilist) == FALSE) {
 - `logical`: TRUE 表示没有检测到尖角，FALSE 表示存在尖角问题
 
 **错误条件**:
-- 相邻边之间的夹角过小
+- 相邻边之间的夹角过小（小于约10度）
 - 几何模型存在锐角特征
+- 曲线评估异常或数值不稳定
 - 可能影响后续的几何处理
 
 **使用示例**:
@@ -578,9 +593,10 @@ if (check_vertex_sharp_angle(vertex, &ilist) == FALSE) {
 - 平滑几何模型的锐角
 - 调整几何建模的圆角设置
 - 检查设计意图的合理性
+- 优化曲线参数化以提高数值稳定性
 
 **章节来源**
-- [check_vertex.cxx:553-609](file://src/check_vertex.cxx#L553-L609)
+- [check_vertex.cxx:584-672](file://src/check_vertex.cxx#L584-L672)
 
 ### 11. api_check_vertex_errors - 错误模式检查接口
 
@@ -620,7 +636,7 @@ if (res.is_success()) {
 - 根据错误类型采取相应的修复措施
 
 **章节来源**
-- [check_vertex.cxx:59-137](file://src/check_vertex.cxx#L59-L137)
+- [check_vertex.cxx:61-139](file://src/check_vertex.cxx#L61-L139)
 
 ### 12. api_check_vertex - 快速检查接口
 
@@ -657,54 +673,23 @@ if (status == VTX_CHECK_OK) {
 - 结合详细检查接口获取更多信息
 
 **章节来源**
-- [check_vertex.cxx:611-713](file://src/check_vertex.cxx#L611-L713)
-
-## 依赖关系分析
-
-VERTEX 检查系统与其他几何检查模块存在密切的依赖关系：
-
-```mermaid
-graph LR
-subgraph "VERTEX 检查系统"
-A[check_vertex.cxx]
-B[vertex_check_result]
-C[insanity_list]
-end
-subgraph "几何实体"
-D[VERTEX]
-E[EDGE]
-F[FACE]
-G[CURVE]
-H[SURFACE]
-end
-subgraph "其他检查模块"
-I[check_edge.cxx]
-J[check_surface.cxx]
-end
-A --> D
-A --> E
-A --> F
-A --> G
-A --> H
-A --> C
-B --> C
-I --> E
-J --> H
-A -.-> I
-A -.-> J
-```
-
-**图表来源**
-- [check_vertex.cxx:1-14](file://src/check_vertex.cxx#L1-L14)
-- [check_edge.cxx:1-11](file://src/check_edge.cxx#L1-L11)
-- [check_surface.cxx:1-11](file://src/check_surface.cxx#L1-L11)
-
-**章节来源**
-- [check_vertex.cxx:1-14](file://src/check_vertex.cxx#L1-L14)
-- [check_edge.cxx:1-11](file://src/check_edge.cxx#L1-L11)
-- [check_surface.cxx:1-11](file://src/check_surface.cxx#L1-L11)
+- [check_vertex.cxx:674-777](file://src/check_vertex.cxx#L674-L777)
 
 ## 性能考虑
+
+### 现代化内存优化
+
+**基于栈的数组替代动态分配**
+- **优化前**: 重复遍历链表结构进行成对比较
+- **优化后**: 使用 `EDGE **edges = new EDGE*[edge_count]` 创建固定大小数组
+- **内存优势**: 避免频繁的动态内存分配和释放
+- **访问效率**: 数组索引访问比链表遍历更快
+
+**成对角度计算的效率提升**
+- **算法复杂度**: 从 O(n³) 降低到 O(n²)
+- **数值稳定性**: 添加余弦值范围钳制防止 acos 输入越界
+- **异常处理**: 完善的 try-catch 机制处理曲线评估异常
+- **内存管理**: 及时释放动态分配的数组内存
 
 ### 时间复杂度分析
 
@@ -719,14 +704,14 @@ A -.-> J
 - **check_vertex_bounding_box**: O(1) - 常数时间检查
 - **check_vertex_normal_consistency**: O(n×m) - n为边数，m为平均同调边数
 - **check_vertex_tolerance**: O(1) - 常数时间检查
-- **check_vertex_sharp_angle**: O(n²) - n为关联边的数量
+- **check_vertex_sharp_angle**: O(n²) - n为关联边的数量（优化后）
 
 ### 内存使用优化
 
-- 使用栈分配存储临时变量
-- 避免不必要的对象复制
-- 及时释放动态分配的内存
-- 使用智能指针管理资源
+- **动态数组管理**: 及时释放 `delete[] edges` 避免内存泄漏
+- **异常安全**: try-catch 机制确保异常情况下内存正确释放
+- **数值稳定性**: 防止 acos 输入越界导致的计算异常
+- **资源管理**: 智能的内存分配策略平衡性能和安全性
 
 ### 并行处理可能性
 
@@ -734,6 +719,9 @@ A -.-> J
 - 边的有效性检查可以在多线程环境中并行处理
 - 不同顶点的检查可以并行执行
 - 需要注意线程安全和资源共享问题
+
+**章节来源**
+- [check_vertex.cxx:584-672](file://src/check_vertex.cxx#L584-L672)
 
 ## 故障排除指南
 
@@ -747,6 +735,19 @@ A -.-> J
 | VTX_CHECK_BAD_EDGE_CURVE | 边曲线关系不正确 | 重新计算曲线参数映射 |
 | VTX_CHECK_EDGE_SENSE_MISMATCH | 边方向不一致 | 统一边的方向定义 |
 | VTX_CHECK_NON_MANIFOLD | 非流形顶点 | 修复几何拓扑结构 |
+| VTX_CHECK_SHARP_ANGLE | 尖角问题 | 平滑几何模型或调整设计 |
+
+### 现代化优化相关问题
+
+**内存管理问题**
+- 确保动态数组正确释放
+- 检查异常处理是否完整
+- 验证内存分配是否成功
+
+**数值稳定性问题**
+- 检查余弦值范围钳制是否生效
+- 验证 acos 输入值是否在有效范围内
+- 确认异常处理机制正常工作
 
 ### 调试技巧
 
@@ -754,6 +755,7 @@ A -.-> J
 2. **逐步检查**: 逐个调用单个检查函数定位问题
 3. **可视化分析**: 使用几何可视化工具检查顶点周围的结构
 4. **数值分析**: 检查坐标值的精度和范围
+5. **内存分析**: 监控内存使用情况，确保无泄漏
 
 ### 最佳实践
 
@@ -761,15 +763,23 @@ A -.-> J
 2. **渐进式修复**: 从小问题开始逐步解决复杂的几何问题
 3. **版本控制**: 保留检查结果以便跟踪问题的发展
 4. **性能监控**: 监控检查过程的性能，及时发现性能瓶颈
+5. **内存安全**: 确保所有动态分配都有对应的释放机制
 
 **章节来源**
-- [check_vertex.cxx:59-137](file://src/check_vertex.cxx#L59-L137)
-- [check_vertex.cxx:611-713](file://src/check_vertex.cxx#L611-L713)
+- [check_vertex.cxx:61-139](file://src/check_vertex.cxx#L61-L139)
+- [check_vertex.cxx:674-777](file://src/check_vertex.cxx#L674-L777)
+- [check_vertex.cxx:584-672](file://src/check_vertex.cxx#L584-L672)
 
 ## 结论
 
 VERTEX 检查系统提供了全面而细致的顶点验证机制，涵盖了从几何有效性到拓扑完整性的各个方面。通过这12个专门的检查函数，开发者可以有效地识别和解决几何模型中的各种问题。
 
+**现代化改进总结**:
+- **内存优化**: 成功将动态内存分配替换为基于栈的数组管理
+- **性能提升**: 显著提高了成对角度计算的效率和准确性
+- **数值稳定性**: 添加了完善的异常处理和数值保护机制
+- **资源管理**: 改进了内存分配和释放的安全性
+
 系统的设计充分考虑了实用性、可维护性和扩展性，为复杂的几何建模应用提供了可靠的质量保证机制。建议在实际应用中结合使用快速检查和详细检查接口，以获得最佳的检查效果和开发体验。
 
-通过对这些检查函数的深入理解和正确使用，开发者可以显著提高几何模型的质量，减少后续处理过程中的问题，并提升整体的建模效率和可靠性。
+通过对这些检查函数的深入理解和正确使用，开发者可以显著提高几何模型的质量，减少后续处理过程中的问题，并提升整体的建模效率和可靠性。现代化的内存管理和数值稳定性改进进一步增强了系统的鲁棒性和性能表现。

@@ -14,6 +14,13 @@
 - [check_vertex.cxx](file://src/check_vertex.cxx)
 </cite>
 
+## 更新摘要
+**所做更改**
+- 新增表面接缝连续性检查功能章节，包括G1和G2连续性检查算法
+- 更新连续性判断算法部分，增加接缝边界检查的具体实现
+- 新增边界接缝采样和曲率比较算法的详细说明
+- 更新检查状态枚举，添加接缝连续性相关的状态常量
+
 ## 目录
 1. [简介](#简介)
 2. [项目结构](#项目结构)
@@ -28,6 +35,8 @@
 ## 简介
 
 SURFACE 检查模块是 CAD 几何验证系统的核心组件，负责对曲面几何进行全面的质量检查和完整性验证。该模块实现了多种几何检查算法，包括参数域分析、连续性判断（G0/G1/G2）、奇异点检测、自交检测、法向量计算和一致性检查、面积退化判断等。这些算法通过严格的数学原理和数值稳定性考虑，确保 CAD 模型的几何质量和拓扑正确性。
+
+**更新** 新增全面的表面接缝连续性检查功能，包括G1和G2连续性检查、边界接缝采样、曲率比较等新算法，专门用于检测封闭曲面在U/V方向边界处的连续性问题。
 
 本模块采用模块化设计，每个检查算法都独立实现，具有清晰的输入输出接口和错误处理机制。通过组合多个检查算法，可以构建完整的几何验证流水线，为后续的几何建模和制造过程提供可靠的数据基础。
 
@@ -141,6 +150,10 @@ insanity_list --> insanity_data : "包含"
 | SURF_CHECK_BAD_UV_COORDINATES | UV 坐标错误 | 1 << 13 |
 | SURF_CHECK_DEGENERATE_AREA | 面积退化 | 1 << 14 |
 | SURF_CHECK_BAD_PERIODICITY | 周期性错误 | 1 << 15 |
+| SURF_CHECK_SEAM_G1_DISCONTINUITY | 接缝G1不连续 | 1 << 16 |
+| SURF_CHECK_SEAM_G2_DISCONTINUITY | 接缝G2不连续 | 1 << 17 |
+
+**更新** 新增接缝连续性相关的状态常量，用于标识表面边界处的连续性问题。
 
 **章节来源**
 - [check_surface.hxx:9-27](file://include/check_surface.hxx#L9-L27)
@@ -166,20 +179,21 @@ I[check_surface_singularity]
 J[check_surface_self_intersection]
 K[check_surface_normal_consistency]
 L[check_surface_g2_continuity]
+M[check_surface_seam_continuity]
 end
 subgraph "数据层"
-M[surface_check_result]
-N[edge_check_result]
-O[lump_check_result]
-P[bs3_curve_check_result]
-Q[vertex_check_result]
+N[surface_check_result]
+O[edge_check_result]
+P[lump_check_result]
+Q[bs3_curve_check_result]
+R[vertex_check_result]
 end
 subgraph "几何实体"
-R[SURFACE]
-S[EDGE]
-T[LUMP]
-U[CURVE]
-V[VERTEX]
+S[SURFACE]
+T[EDGE]
+U[LUMP]
+V[CURVE]
+W[VERTEX]
 end
 A --> F
 A --> G
@@ -188,15 +202,19 @@ A --> I
 A --> J
 A --> K
 A --> L
-F --> R
-G --> R
-H --> R
-I --> R
-J --> R
-K --> R
-L --> R
-M --> R
+A --> M
+F --> S
+G --> S
+H --> S
+I --> S
+J --> S
+K --> S
+L --> S
+M --> S
+N --> S
 ```
+
+**更新** 新增 check_surface_seam_continuity 检查层，专门处理表面接缝连续性检查。
 
 **图表来源**
 - [check_surface.hxx:49-131](file://include/check_surface.hxx#L49-L131)
@@ -239,7 +257,7 @@ SetError --> End([结束])
 SetWarning --> End
 SetError2 --> End
 SetError3 --> End
-Success --> End
+Success --> End([结束])
 ```
 
 **图表来源**
@@ -256,7 +274,7 @@ Success --> End
 
 ### 连续性判断算法 (G0/G1/G2)
 
-连续性判断算法根据几何连续性的数学定义实现：
+连续性判断算法根据几何连续性的数学定义实现，现已增强对表面接缝连续性的检查能力：
 
 #### G0 连续性判断
 
@@ -286,13 +304,14 @@ end
 
 #### G1 连续性判断
 
-G1 连续性要求切向量在连接处保持方向一致：
+G1 连续性要求切向量在连接处保持方向一致。**更新** 新增接缝边界检查功能：
 
 ```mermaid
 flowchart TD
 Start([开始 G1 连续性检查]) --> CheckClosed{"表面是否封闭？"}
 CheckClosed --> |否| Success["跳过检查<br/>返回成功"]
-CheckClosed --> |是| SamplePoints["在 U 和 V 方向采样"]
+CheckClosed --> |是| CheckSeams["检查U和V方向接缝"]
+CheckSeams --> SamplePoints["在 U 和 V 方向采样"]
 SamplePoints --> EvalDerivs["评估边界切向量"]
 EvalDerivs --> CheckAngle["计算切向量夹角"]
 CheckAngle --> AngleValid{"cos(θ) > 1 - SPAresnor*10？"}
@@ -302,15 +321,36 @@ Success --> End([结束])
 SetWarning --> End
 ```
 
+**更新** 新增接缝边界检查流程，专门检测U/V方向边界处的G1连续性问题。
+
 **图表来源**
 - [check_surface.cxx:721-800](file://src/check_surface.cxx#L721-L800)
+- [check_surface.cxx:318-365](file://src/check_surface.cxx#L318-L365)
 
 #### G2 连续性判断
 
-G2 连续性要求曲率在连接处保持连续：
+G2 连续性要求曲率在连接处保持连续。**更新** 新增接缝边界曲率比较算法：
 
-**章节来源**
-- [check_surface.cxx:721-800](file://src/check_surface.cxx#L721-L800)
+```mermaid
+flowchart TD
+Start([开始 G2 连续性检查]) --> CheckClosed{"表面是否封闭？"}
+CheckClosed --> |否| Success["跳过检查<br/>返回成功"]
+CheckClosed --> |是| CheckSeams["检查U和V方向接缝"]
+CheckSeams --> SamplePoints["在 U 和 V 方向采样"]
+SamplePoints --> EvalFirstDerivs["评估一阶导数"]
+EvalFirstDerivs --> FiniteDiff["使用有限差分计算二阶导数"]
+FiniteDiff --> CompareCurvature["比较曲率向量"]
+CompareCurvature --> CurvatureValid{"cos(κ) > 1 - SPAresnor*100？"}
+CurvatureValid --> |是| Success
+CurvatureValid --> |否| SetWarning2["设置警告：G2 不连续"]
+Success --> End([结束])
+SetWarning2 --> End
+```
+
+**更新** 新增G2接缝连续性检查算法，通过有限差分方法比较边界处的曲率变化。
+
+**图表来源**
+- [check_surface.cxx:803-889](file://src/check_surface.cxx#L803-L889)
 
 #### 复杂度分析
 
@@ -471,6 +511,65 @@ SetError2 --> End
 **章节来源**
 - [check_surface.cxx:117-120](file://src/check_surface.cxx#L117-L120)
 
+### 表面接缝连续性检查算法
+
+**新增** 专门针对封闭曲面边界处连续性问题的检查算法：
+
+#### 接缝采样策略
+
+接缝连续性检查采用特殊的边界采样策略，避免使用内部采样点：
+
+```mermaid
+flowchart TD
+Start([开始接缝连续性检查]) --> CheckU{"U方向是否封闭？"}
+CheckU --> |是| SampleU["沿U方向采样"]
+SampleU --> EvalU["评估边界切向量/曲率"]
+EvalU --> CheckAngleU{"检查G1角度一致性"}
+CheckAngleU --> CheckCurvatureU{"检查G2曲率一致性"}
+CheckCurvatureU --> CheckV{"V方向是否封闭？"}
+CheckU --> |否| CheckV
+CheckV --> |是| SampleV["沿V方向采样"]
+SampleV --> EvalV["评估边界切向量/曲率"]
+EvalV --> CheckAngleV{"检查G1角度一致性"}
+CheckAngleV --> CheckCurvatureV{"检查G2曲率一致性"}
+CheckV --> |否| Success["检查完成"]
+CheckAngleU --> |不满足| SetWarning1["设置G1警告"]
+CheckCurvatureU --> |不满足| SetWarning2["设置G2警告"]
+CheckAngleV --> |不满足| SetWarning3["设置G1警告"]
+CheckCurvatureV --> |不满足| SetWarning4["设置G2警告"]
+SetWarning1 --> Success
+SetWarning2 --> Success
+SetWarning3 --> Success
+SetWarning4 --> Success
+Success --> End([结束])
+```
+
+**图表来源**
+- [check_surface.cxx:318-365](file://src/check_surface.cxx#L318-L365)
+- [check_surface.cxx:785-889](file://src/check_surface.cxx#L785-L889)
+
+#### G1 接缝连续性检查
+
+G1 接缝连续性检查通过比较边界处切向量的一致性来实现：
+
+1. **U方向接缝检查**: 在边界 u = u_min 和 u = u_max 处采样
+2. **V方向接缝检查**: 在边界 v = v_min 和 v = v_max 处采样
+3. **切向量计算**: 使用边界附近的微小偏移计算切向量
+4. **角度比较**: 比较相邻边界点处切向量的夹角余弦值
+
+#### G2 接缝连续性检查
+
+G2 接缝连续性检查通过有限差分方法比较边界处曲率的变化：
+
+1. **一阶导数评估**: 在边界附近评估切向量
+2. **有限差分计算**: 使用 h = 0.0001 × 参数范围计算二阶导数
+3. **曲率向量比较**: 比较边界处曲率向量的一致性
+4. **角度阈值**: 使用更严格的阈值 `SPAresnor * 100` 来检测细微的曲率变化
+
+**章节来源**
+- [check_surface.cxx:318-365](file://src/check_surface.cxx#L318-L365)
+- [check_surface.cxx:785-889](file://src/check_surface.cxx#L785-L889)
+
 ## 依赖关系分析
 
 SURFACE 检查模块与其他几何组件存在紧密的依赖关系：
@@ -545,18 +644,21 @@ J --> O
 1. **采样策略优化**: 各算法采用不同的采样密度，平衡精度和性能
 2. **早期退出机制**: 在检测到错误时立即停止进一步计算
 3. **向量化操作**: 利用 SIMD 指令集优化向量运算
+4. **接缝检查优化**: 接缝连续性检查仅在封闭表面时执行，避免不必要的计算
 
 ### 空间复杂度优化
 
 1. **原地计算**: 大多数算法只使用常数个临时变量
 2. **延迟计算**: 按需计算中间结果，避免不必要的内存分配
 3. **共享数据**: 多个检查算法可以共享相同的几何数据
+4. **有限差分缓存**: 接缝检查中的重复计算结果可以缓存复用
 
 ### 数值稳定性保证
 
 1. **容差阈值**: 使用 `SPAresabs` 和 `SPAresnor` 作为统一的数值容差
 2. **异常处理**: 所有几何评估操作都在 try-catch 块中执行
 3. **边界检查**: 在进行除法和开方运算前检查分母和被开方数的符号
+4. **接缝稳定性**: 接缝检查使用微小偏移量避免边界奇异性
 
 ## 故障排除指南
 
@@ -567,6 +669,8 @@ J --> O
 | 评估失败 | 几何对象损坏或参数超出范围 | 检查几何对象完整性，调整参数范围 |
 | NaN 坐标 | 数值计算溢出或除零错误 | 检查几何定义，使用更稳定的算法 |
 | G1 不连续 | 参数化不一致或几何缺陷 | 重新参数化，修复几何缺陷 |
+| G1 接缝不连续 | U/V方向边界参数化不匹配 | 检查边界参数化，调整接缝处的几何 |
+| G2 接缝不连续 | 边界处曲率变化过大 | 平滑边界区域，改善几何连续性 |
 | 自相交 | 网格划分过粗或阈值不当 | 增加采样密度，调整检测阈值 |
 | 奇异点 | 控制点分布不合理 | 重新分布控制点，改善几何形状 |
 
@@ -576,6 +680,7 @@ J --> O
 2. **逐步检查**: 逐个运行检查算法，定位问题所在
 3. **可视化验证**: 将检查结果可视化，直观发现几何问题
 4. **参数调优**: 根据具体应用场景调整容差阈值
+5. **接缝专项调试**: 对于接缝连续性问题，重点关注边界参数化和曲率变化
 
 **章节来源**
 - [check_surface.cxx:89-141](file://src/check_surface.cxx#L89-L141)
@@ -585,10 +690,14 @@ J --> O
 
 SURFACE 检查模块通过精心设计的算法和严格的实现，为 CAD 几何验证提供了全面而可靠的解决方案。该模块不仅实现了标准的几何检查功能，还特别注重数值稳定性和性能优化。
 
+**更新** 新增的表面接缝连续性检查功能显著增强了模块对复杂几何体的检查能力，特别是对于封闭曲面的边界连续性问题。这一功能的加入使得模块能够更准确地识别和报告几何模型中的潜在问题，为高质量的 CAD 设计和制造过程提供更好的保障。
+
 关键特点包括：
 - **模块化设计**: 每个检查算法独立实现，便于维护和扩展
 - **数学严谨性**: 基于严格的数学原理，确保检查结果的准确性
 - **性能优化**: 采用多种优化策略，在保证精度的同时提高计算效率
 - **鲁棒性**: 完善的错误处理和异常管理机制
+- **接缝专门化**: 新增的接缝连续性检查算法专门处理边界连续性问题
+- **数值稳定性**: 特别针对接缝检查的数值稳定性进行了优化
 
 这些特性使得 SURFACE 检查模块能够有效支持复杂的 CAD 应用场景，为几何建模、仿真分析和制造过程提供坚实的数据基础。

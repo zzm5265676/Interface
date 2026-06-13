@@ -11,6 +11,12 @@
 - [check_lump.hxx](file://include/check_lump.hxx)
 </cite>
 
+## 更新摘要
+**所做更改**
+- 更新了拟合公差检查函数的实现细节，增加了对 NaN 和无穷大值的安全检查
+- 新增了无效边缘拟合公差的异常处理机制
+- 改进了公差处理的健壮性，防止因数值异常导致的处理失败
+
 ## 目录
 1. [简介](#简介)
 2. [项目结构](#项目结构)
@@ -25,6 +31,8 @@
 ## 简介
 
 本文档为 EDGE 检查模块的16个具体检查函数提供详细的技术文档。这些检查函数用于验证几何模型中边（EDGE）的有效性和完整性，确保几何数据符合 ACIS 几何内核的要求。每个检查函数都包含数学原理、ACIS API 调用方式、错误检测机制和使用示例。
+
+**更新** 本版本反映了最新的公差处理改进，特别加强了对无效边缘拟合公差的安全检查，防止 NaN 和无限值导致的处理失败。
 
 ## 项目结构
 
@@ -313,19 +321,23 @@ end
 
 ### 10. 拟合公差检查 (check_edge_fit_tolerance)
 
-**数学原理**: 验证 EDGE 的拟合公差是否在合理范围内。
+**数学原理**: 验证 EDGE 的拟合公差是否在合理范围内，并防止数值异常。
 
 **ACIS API 调用方式**:
 - 使用 `fit_tolerance()` 获取公差值
+- 检查公差值的数值有效性
 
 **错误检测机制**:
+- 公差为 NaN 或无穷大时记录 ERROR 异常
 - 公差为负数时记录 ERROR 异常
 - 公差过大时记录 WARNING 异常
 
-**使用示例路径**: [check_edge_fit_tolerance 示例:547-574](file://src/check_edge.cxx#L547-L574)
+**更新** 新增了对 NaN 和无穷大值的专门检查，确保无效边缘拟合公差得到安全处理。
+
+**使用示例路径**: [check_edge_fit_tolerance 示例:547-582](file://src/check_edge.cxx#L547-L582)
 
 **章节来源**
-- [check_edge.cxx:547-574](file://src/check_edge.cxx#L547-L574)
+- [check_edge.cxx:547-582](file://src/check_edge.cxx#L547-L582)
 
 ### 11. 长度检查 (check_edge_length)
 
@@ -336,12 +348,13 @@ end
 - 检查长度值的有效性
 
 **错误检测机制**:
-- 长度为负数或 NaN/Inf 时记录异常
+- 长度为负数时记录 ERROR 异常
+- 长度为 NaN 或无穷大时记录 ERROR 异常
 
-**使用示例路径**: [check_edge_length 示例:576-621](file://src/check_edge.cxx#L576-L621)
+**使用示例路径**: [check_edge_length 示例:584-621](file://src/check_edge.cxx#L584-L621)
 
 **章节来源**
-- [check_edge.cxx:576-621](file://src/check_edge.cxx#L576-L621)
+- [check_edge.cxx:584-621](file://src/check_edge.cxx#L584-L621)
 
 ### 12. G1 连续性检查 (check_edge_g1_continuity)
 
@@ -384,7 +397,7 @@ end
 
 **错误检测机制**:
 - 参数包含 NaN/Inf 时记录 ERROR 异常
-- 非闭合情况下起始参数大于终止参数时记录 WARNING
+- 非闭合情况下起始参数大于终止参数时记录 WARNING 异常
 
 **使用示例路径**: [check_edge_param_normalization 示例:721-760](file://src/check_edge.cxx#L721-L760)
 
@@ -500,7 +513,7 @@ EDGE 检查模块依赖于以下外部组件：
 7. **闭合检查**: O(1) - 固定次数评估
 8. **方向一致性检查**: O(n) - n 为共边数量
 9. **评估检查**: O(m) - m 为采样点数量
-10. **拟合公差检查**: O(1) - 数值比较
+10. **拟合公差检查**: O(1) - 数值比较和异常检查
 11. **长度检查**: O(1) - 向量运算
 12. **G1 连续性检查**: O(1) - 固定次数评估
 13. **包围盒检查**: O(1) - 坐标检查
@@ -541,9 +554,15 @@ DegenerateWarning --> ParamCheck
 ParamCheck --> |通过| EvaluationCheck{评估检查}
 ParamCheck --> |失败| ParamError[参数错误]
 ParamError --> End
-EvaluationCheck --> |通过| FinalStatus[生成最终状态]
+EvaluationCheck --> |通过| FitToleranceCheck{拟合公差检查}
 EvaluationCheck --> |失败| EvalError[评估错误]
 EvalError --> End
+FitToleranceCheck --> |通过| LengthCheck{长度检查}
+FitToleranceCheck --> |失败| FitError[拟合公差错误]
+FitError --> End
+LengthCheck --> |通过| FinalStatus[生成最终状态]
+LengthCheck --> |失败| LengthError[长度错误]
+LengthError --> End
 FinalStatus --> End
 ```
 
@@ -575,5 +594,7 @@ EDGE 检查模块提供了全面而系统的几何验证功能，涵盖了从基
 2. **可扩展性**: 采用模块化设计，易于添加新的检查项
 3. **实用性**: 提供多种 API 接口，适应不同的使用场景
 4. **可靠性**: 严格的错误检测和异常处理机制
+
+**更新** 最新的公差处理改进显著增强了模块的健壮性，特别是对无效边缘拟合公差的安全检查，有效防止了 NaN 和无限值导致的处理失败，确保了系统在各种边界条件下的稳定运行。
 
 通过正确使用这些检查函数，开发者可以有效地验证和维护几何模型的质量，确保 ACIS 几何内核的稳定运行。
